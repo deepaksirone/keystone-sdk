@@ -104,6 +104,30 @@ macro(add_eyrie_runtime target_name tag plugins) # the files are passed via ${AR
 
 endmacro(add_eyrie_runtime)
 
+macro(add_wolfssl target_name tag plugins)
+  set (tls_prefix tls)       
+  set (wolfssl_src ${CMAKE_CURRENT_BINARY_DIR}/${tls_prefix}/src/wolfssl-${target_name})
+  set (wolfssl_install ${CMAKE_CURRENT_BINARY_DIR}/${tls_prefix}/install)
+
+  ExternalProject_Add(wolfssl-${target_name}
+    PREFIX ${tls_prefix}
+    INSTALL_DIR ${tls_prefix}/install
+    GIT_REPOSITORY https://github.com/wolfSSL/wolfssl
+    GIT_TAG ${tag}
+    CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=${wolfssl_install} --exec-prefix=${wolfssl_install} --enable-static --disable-shared --enable-harden --enable-singlethreaded --host=riscv64-unknown-linux-gnu CC=riscv64-unknown-linux-gnu-gcc AR=riscv64-unknown-linux-gnu-ar RANLIB=riscv64-unknown-linux-gnu-ranlib
+    UPDATE_COMMAND git fetch
+    BUILD_COMMAND make install
+    BUILD_IN_SOURCE TRUE
+    INSTALL_COMMAND ""
+  )
+
+  add_custom_target(${target_name} DEPENDS wolfssl-${target_name})
+  include_directories(AFTER ${wolfssl_install}/include)
+  set(WOLFSSL_LIB ${wolfssl_install}/lib/libwolfssl.a)
+
+endmacro(add_wolfssl) 
+  
+
 macro(add_keystone_package target_name package_name package_script) # files are passed via ${ARGN}
   set(pkg_dir ${CMAKE_CURRENT_BINARY_DIR}/pkg)
   add_custom_command(OUTPUT ${pkg_dir} COMMAND mkdir ${pkg_dir})
