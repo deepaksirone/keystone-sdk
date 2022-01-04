@@ -12,7 +12,8 @@ else()
   set(BITS 64)
 endif()
 
-use_riscv_toolchain(${BITS})
+#use_riscv_toolchain(${BITS})
+use_riscv_musl_toolchain(${BITS})
 
 # check if SDK has been built and KEYSTONE_SDK_DIR environment variable exists
 if (NOT DEFINED ENV{KEYSTONE_SDK_DIR})

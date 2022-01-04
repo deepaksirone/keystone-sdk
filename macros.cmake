@@ -49,6 +49,50 @@ macro(use_riscv_toolchain bits)
 
 endmacro()
 
+macro(use_riscv_musl_toolchain bits)
+  set(cross_compile riscv${bits}-unknown-linux-musl-)
+  execute_process(
+    COMMAND which ${cross_compile}gcc
+    OUTPUT_VARIABLE CROSSCOMPILE
+    RESULT_VARIABLE ERROR)
+
+  if (NOT "${ERROR}" STREQUAL 0)
+    message(FATAL_ERROR "RISCV Toochain is not found")
+  endif()
+
+  string(STRIP ${CROSSCOMPILE} CROSSCOMPILE)
+  string(REPLACE "gcc" "" CROSSCOMPILE ${CROSSCOMPILE})
+
+  message(STATUS "Tagret tripplet: ${CROSSCOMPILE}")
+
+  set(CC              ${CROSSCOMPILE}gcc)
+  set(CXX             ${CROSSCOMPILE}g++)
+  set(LD              ${CROSSCOMPILE}ld)
+  set(AR              ${CROSSCOMPILE}ar)
+  set(OBJCOPY         ${CROSSCOMPILE}objcopy)
+  set(OBJDUMP         ${CROSSCOMPILE}objdump)
+  set(CFLAGS          "-Wall -Werror")
+
+  global_set(CMAKE_C_COMPILER        ${CC}${EXT})
+  global_set(CMAKE_ASM_COMPILER        ${CC}${EXT})
+  global_set(CMAKE_CXX_COMPILER      ${CXX}${EXT})
+  global_set(CMAKE_LINKER            ${LD}${EXT})
+  global_set(CMAKE_AR                ${AR}${EXT})
+  global_set(CMAKE_OBJCOPY           ${OBJCOPY}${EXT})
+  global_set(CMAKE_OBJDUMP           ${OBJDUMP}${EXT})
+  global_set(CMAKE_C_FLAGS           ${CMAKE_C_FLAGS} ${CFLAGS})
+
+  check_compiler(${CMAKE_C_COMPILER})
+  check_compiler(${CMAKE_CXX_COMPILER})
+
+  global_set(CMAKE_C_COMPILER_WORKS      1)
+  global_set(CMAKE_CXX_COMPILER_WORKS    1)
+
+  global_set(CMAKE_SYSTEM_NAME    "Linux")
+
+endmacro()
+
+
 macro(check_compiler target)
   message(STATUS "Check for working C compiler: ${target}")
   execute_process(
@@ -104,7 +148,7 @@ macro(add_eyrie_runtime target_name tag plugins) # the files are passed via ${AR
 
 endmacro(add_eyrie_runtime)
 
-macro(add_wolfssl target_name tag plugins)
+macro(add_wolfssl target_name tag libc plugins)
   set (tls_prefix tls)       
   set (wolfssl_src ${CMAKE_CURRENT_BINARY_DIR}/${tls_prefix}/src/wolfssl-${target_name})
   set (wolfssl_install ${CMAKE_CURRENT_BINARY_DIR}/${tls_prefix}/install)
@@ -114,7 +158,7 @@ macro(add_wolfssl target_name tag plugins)
     INSTALL_DIR ${tls_prefix}/install
     GIT_REPOSITORY https://github.com/wolfSSL/wolfssl
     GIT_TAG ${tag}
-    CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=${wolfssl_install} --exec-prefix=${wolfssl_install} --enable-static --disable-shared --enable-harden --enable-singlethreaded --host=riscv64-unknown-linux-gnu CC=riscv64-unknown-linux-gnu-gcc AR=riscv64-unknown-linux-gnu-ar RANLIB=riscv64-unknown-linux-gnu-ranlib
+    CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=${wolfssl_install} --exec-prefix=${wolfssl_install} --enable-static --disable-shared --enable-harden --enable-singlethreaded --host=riscv64-unknown-linux-${libc} CC=riscv64-unknown-linux-${libc}-gcc AR=riscv64-unknown-linux-${libc}-ar RANLIB=riscv64-unknown-linux-${libc}-ranlib
     UPDATE_COMMAND git fetch
     BUILD_COMMAND make install
     BUILD_IN_SOURCE TRUE

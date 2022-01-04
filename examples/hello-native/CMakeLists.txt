@@ -23,7 +23,7 @@ target_include_directories(${eapp_bin}
 # host
 
 add_executable(${host_bin} ${host_src})
-target_link_libraries(${host_bin} ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_EDGE})
+target_link_libraries(${host_bin} "-static" ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_EDGE})
 # add -std=c++11 flag
 set_target_properties(${host_bin}
   PROPERTIES CXX_STANDARD 11 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO

@@ -98,7 +98,7 @@ set_target_properties(${all_test_bins}
 # host
 
 add_executable(${host_bin} ${host_src})
-target_link_libraries(${host_bin} ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_EDGE} ${KEYSTONE_LIB_VERIFIER})
+target_link_libraries(${host_bin} "-static" ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_EDGE} ${KEYSTONE_LIB_VERIFIER})
 
 # add target for Eyrie runtime (see keystone.cmake)
 

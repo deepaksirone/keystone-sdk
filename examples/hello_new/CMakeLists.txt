@@ -22,7 +22,7 @@ target_link_libraries(${eapp_bin} "-static" ${WOLFSSL_LIB} "-lm")
 # host
 
 add_executable(${host_bin} ${host_src})
-target_link_libraries(${host_bin} ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_EDGE})
+target_link_libraries(${host_bin} "-static" ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_EDGE})
 
 # add target for Eyrie runtime (see keystone.cmake)
 
