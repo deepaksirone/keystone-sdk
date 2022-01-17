@@ -24,6 +24,7 @@ set(KEYSTONE_SDK_DIR $ENV{KEYSTONE_SDK_DIR})
 
 # export include directory
 include_directories(AFTER ${KEYSTONE_SDK_DIR}/include)
+# TODO: Fix this
 include_directories(AFTER ${KEYSTONE_SDK_DIR}/include/host
 			  ${KEYSTONE_SDK_DIR}/include/edge
   		          ${KEYSTONE_SDK_DIR}/include/verifier)
