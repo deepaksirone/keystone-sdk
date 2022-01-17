@@ -24,6 +24,11 @@ set(KEYSTONE_SDK_DIR $ENV{KEYSTONE_SDK_DIR})
 
 # export include directory
 include_directories(AFTER ${KEYSTONE_SDK_DIR}/include)
+include_directories(AFTER ${KEYSTONE_SDK_DIR}/include/host
+			  ${KEYSTONE_SDK_DIR}/include/edge
+  		          ${KEYSTONE_SDK_DIR}/include/verifier)
+		          
+
 
 # set paths to the libraries
 set(KEYSTONE_LIB_HOST ${KEYSTONE_SDK_DIR}/lib/libkeystone-host.a)
@@ -42,3 +47,4 @@ add_subdirectory(hello)
 add_subdirectory(hello-native)
 add_subdirectory(tests)
 add_subdirectory(hello_new)
+add_subdirectory(wolfssl_client)
