@@ -17,6 +17,7 @@ include("./libs.cmake")
 # eapp
 
 add_executable(${eapp_bin} ${eapp_src})
+add_dependencies(${eapp_bin} ${eapp_bin}-wolfssl)
 target_link_libraries(${eapp_bin} "-static" ${WOLFSSL_LIB} "-lm")
 
 # host
