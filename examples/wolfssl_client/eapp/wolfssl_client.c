@@ -137,6 +137,29 @@ WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify)
     return ssl;
 }
 
+
+int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
+{
+	int64_t pos = 0;
+	size_t ret = wolfSSL_read(sslcli, buffer, sz);
+    int error;
+
+	while (ret > 0) {
+		pos += ret;
+		ret = wolfSSL_read(sslcli, (void *) (buffer + pos), sz - pos);
+	}
+
+    error = wolfSSL_get_error(sslcli, 0);
+    if (ret < 0) {
+        if (error != SSL_ERROR_WANT_READ &&
+                error != SSL_ERROR_WANT_WRITE) {
+                printf("client read failed\n");
+        }
+    }
+
+	return pos;
+}
+
 int main(int argc, char** argv)
 {
     char msg[] = "GET / \r\n";
@@ -210,7 +233,7 @@ int main(int argc, char** argv)
             }
         }
 
-        ret = wolfSSL_read(sslCli, reply, sizeof(reply) - 1);
+        /*ret = wolfSSL_read(sslCli, reply, sizeof(reply) - 1);
         error = wolfSSL_get_error(sslCli, 0);
         if (ret < 0) {
             if (error != SSL_ERROR_WANT_READ &&
@@ -223,7 +246,13 @@ int main(int argc, char** argv)
             reply[ret] = '\0';
             printf("Client Received Reply: %s\n", reply);
             break;
-        }
+        }*/
+	ret = read_buffer(sslCli, reply, sizeof(reply) - 1);
+    if (ret > 0) {
+	    reply[ret] = '\0';
+	    printf("Client Received Reply: %s\n", reply);
+    }
+        break;
 
     }
 
