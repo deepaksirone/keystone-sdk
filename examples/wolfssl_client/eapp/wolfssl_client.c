@@ -141,7 +141,7 @@ WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify)
 int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
 {
 	int64_t pos = 0;
-	size_t ret = wolfSSL_read(sslcli, buffer, sz);
+	int64_t ret = wolfSSL_read(sslcli, buffer, sz);
     int error;
 
 	while (ret > 0) {
@@ -200,7 +200,7 @@ int main(int argc, char** argv)
     printf("Starting client\n");
     while (ret != SSL_SUCCESS) {
         int error;
-
+        printf("Connecting..\n");
         /* client connect */
         ret |= wolfSSL_connect(sslCli);
         error = wolfSSL_get_error(sslCli, 0);
@@ -247,25 +247,26 @@ int main(int argc, char** argv)
             printf("Client Received Reply: %s\n", reply);
             break;
         }*/
-	ret = read_buffer(sslCli, reply, sizeof(reply) - 1);
-    if (ret > 0) {
-	    reply[ret] = '\0';
-	    printf("Client Received Reply: %s\n", reply);
-    }
+	    ret = read_buffer(sslCli, reply, MAXSZ - 1);
+        if (ret > 0) {
+	        reply[ret] = '\0';
+	        printf("Client Received Reply: %s\n", reply);
+        }
+
         break;
 
     }
 
 cleanup:
-
+    printf("Cleaning up...\n");
+    return 0;
     wolfSSL_shutdown(sslCli);
     wolfSSL_free(sslCli);
     wolfSSL_CTX_free(ctxCli);
     wolfSSL_Cleanup();
     /* close the streams so client can reset file contents */
-    close(fpSendRecv);
 
-    return -1;
+    
 }
 
 /*int main()
