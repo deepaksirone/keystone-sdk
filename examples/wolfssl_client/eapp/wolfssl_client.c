@@ -36,15 +36,15 @@ int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 {
     (void) ssl; /* will not need ssl context, just using the file system */
     (void) ctx; /* will not need ctx, we're just using the file system */
-    int ret = 0;
+    int ret = -1;
     int i;
 
 	network_recv_request_t req;
 	req.fd = fpSendRecv;
 	req.req_size = sz;
 
-	struct edge_data msg;
-    while (ret <= 0) {
+    struct edge_data msg;
+    while (ret < 0) {
         ret = (int) ocall_recv_buffer_fd(&req, sizeof(network_recv_request_t), &msg);
 		if (ret > 0 && msg.size <= sz) 
 			copy_from_shared(buf, msg.offset, msg.size);
@@ -59,7 +59,8 @@ int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx)
         }
         printf("\n/*-------------------- CLIENT READING -----------------*/\n");
     }
-
+    
+    if (ret == 0) return WOLFSSL_CBIO_ERR_CONN_CLOSE;
     return ret;
 }
 
@@ -162,7 +163,12 @@ int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
 
 int main(int argc, char** argv)
 {
-    char msg[] = "GET / \r\n";
+    //Working message here:
+    //char msg[] = "GET / HTTP/1.1\r\nHost: google.com\r\nConnection: close\r\nUser-Agent: curl/7.65.3\r\nAccept: */*\r\n\r\n";
+    // Working:
+    char msg[] = "GET / HTTP/1.1\r\nConnection: close\r\n\r\n";
+    //Not working!: 
+    //char msg[] = "GET / HTTP/1.1\r\n";
     char reply[MAXSZ];
     int    ret, msgSz;
     WOLFSSL* sslCli;
@@ -175,12 +181,12 @@ int main(int argc, char** argv)
         }
     }
 
-	char *hostname = "google.com";
-	int host_len = strlen(hostname);
+    char *hostname = "google.com";
+    int host_len = strlen(hostname);
 
-	connection_data_t *data = malloc(sizeof(connection_data_t) + host_len * sizeof(unsigned char));
-	data->portnumber = 443;
-	memcpy(data->hostname, hostname, host_len);
+    connection_data_t *data = malloc(sizeof(connection_data_t) + host_len * sizeof(unsigned char));
+    data->portnumber = 443;
+    memcpy(data->hostname, hostname, host_len);
     fpSendRecv = ocall_init_connection(data, sizeof(connection_data_t) + host_len * sizeof(unsigned char));
 
     wolfSSL_Init();
@@ -233,9 +239,9 @@ int main(int argc, char** argv)
             }
         }
 
-        /*ret = wolfSSL_read(sslCli, reply, sizeof(reply) - 1);
-        error = wolfSSL_get_error(sslCli, 0);
-        if (ret < 0) {
+        //ret = wolfSSL_read(sslCli, reply, sizeof(reply) - 1);
+        //error = wolfSSL_get_error(sslCli, 0);
+        /*if (ret < 0) {
             if (error != SSL_ERROR_WANT_READ &&
                 error != SSL_ERROR_WANT_WRITE) {
                 printf("client read failed\n");
@@ -247,7 +253,7 @@ int main(int argc, char** argv)
             printf("Client Received Reply: %s\n", reply);
             break;
         }*/
-	    ret = read_buffer(sslCli, reply, MAXSZ - 1);
+	ret = read_buffer(sslCli, reply, MAXSZ - 1);
         if (ret > 0) {
 	        reply[ret] = '\0';
 	        printf("Client Received Reply: %s\n", reply);

@@ -175,8 +175,12 @@ size_t send_message_fd(int32_t fd, void *buffer, size_t size) {
 network_recv_data_t receive_message_fd(int32_t fd, size_t size) {
   network_recv_data_t ret;
   void *buffer = malloc(size);
+  printf("[host] Reading, sz: %lld\n", size);
+  fflush(stdout);
   size_t sz_read = read(fd, buffer, size);
-
+  printf("[host] Read, sz: %lld\n", sz_read);
+  fflush(stdout);
+  
   ret.size = sz_read;
   ret.data = buffer;
 
