@@ -46,6 +46,7 @@ add_custom_target("examples")
 # add all examples below
 add_subdirectory(hello)
 add_subdirectory(hello-native)
+add_subdirectory(attestation)
 add_subdirectory(tests)
 add_subdirectory(hello_new)
 add_subdirectory(wolfssl_client)
