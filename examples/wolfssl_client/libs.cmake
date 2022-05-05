@@ -1,5 +1,5 @@
 add_wolfssl(${eapp_bin}-wolfssl
-   "v5.0.0-stable"
+   "e6c07a296d2996e8d5c3cc615dfc50013bbcc794"
    "musl"
    ""
 )

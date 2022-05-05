@@ -14,7 +14,7 @@ typedef size_t edge_data_offset;
 
 typedef void (*edgecallwrapper)(void*);
 
-#define MAX_EDGE_CALL 10
+#define MAX_EDGE_CALL 20
 
 extern edgecallwrapper edge_call_table[MAX_EDGE_CALL];
 

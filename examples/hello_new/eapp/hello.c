@@ -42,9 +42,11 @@ int main()
      		err_sys("wolfSSL_new error");
 	}
 
+	// Does not work because wolfSSL is compiled with NO_FILESYSTEM
+	/*
 	if (wolfSSL_CTX_load_verify_locations(ctx, "certs/ca-cert.pem", 0) != SSL_SUCCESS) {
      		err_sys("Error loading certs/ca-cert.pem");
-	}
+	}*/
 
 	wolfSSL_set_fd(ssl, sockfd);
 	wolfSSL_connect(ssl);

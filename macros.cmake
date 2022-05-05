@@ -131,7 +131,7 @@ macro(add_eyrie_runtime target_name tag plugins) # the files are passed via ${AR
 
   ExternalProject_Add(eyrie-${target_name}
     PREFIX ${runtime_prefix}
-    GIT_REPOSITORY https://github.com/keystone-enclave/keystone-runtime
+    GIT_REPOSITORY git@github.com:deepaksirone/keystone-runtime.git
     GIT_TAG ${tag}
     CONFIGURE_COMMAND ""
     UPDATE_COMMAND git fetch
@@ -156,9 +156,9 @@ macro(add_wolfssl target_name tag libc plugins)
   ExternalProject_Add(wolfssl-${target_name}
     PREFIX ${tls_prefix}
     INSTALL_DIR ${tls_prefix}/install
-    GIT_REPOSITORY https://github.com/wolfSSL/wolfssl
+    GIT_REPOSITORY git@github.com:deepaksirone/wolfssl.git
     GIT_TAG ${tag}
-    CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=${wolfssl_install} --exec-prefix=${wolfssl_install} --enable-static --disable-shared --enable-harden --enable-singlethreaded --host=riscv64-unknown-linux-${libc} CC=riscv64-unknown-linux-${libc}-gcc AR=riscv64-unknown-linux-${libc}-ar RANLIB=riscv64-unknown-linux-${libc}-ranlib
+    CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=${wolfssl_install} --exec-prefix=${wolfssl_install} --enable-filesystem=no --enable-certgen --enable-certreq --enable-keygen --enable-sessioncerts --enable-static --disable-shared --enable-harden --enable-singlethreaded --host=riscv64-unknown-linux-${libc} CC=riscv64-unknown-linux-${libc}-gcc AR=riscv64-unknown-linux-${libc}-ar RANLIB=riscv64-unknown-linux-${libc}-ranlib
     UPDATE_COMMAND git fetch
     BUILD_COMMAND make install
     BUILD_IN_SOURCE TRUE
