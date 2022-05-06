@@ -11,6 +11,7 @@
 #include <wolfssl/wolfcrypt/types.h>
 #include "encl_message.h"
 #include "edge_wrapper.h"
+#include "keystone_cert.h"
 
 #define MAXSZ 65535
 #define MAX_COMMAND_SIZE 65535
@@ -145,6 +146,7 @@ WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify)
     return ssl;
 }
 
+/*
 // Same as client, except has a private fd which can be used with the ctx param in the I/O callbacks
 WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite)
 {
@@ -195,7 +197,7 @@ WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite)
 
     wolfSSL_set_fd(ssl, fpRecv);
     return ssl;
-}
+}*/
 
 
 int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
@@ -220,13 +222,33 @@ int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
 	return pos;
 }
 
+void register_rule(int fd, char *username, char *password, char *rule_id, char *rule_bin_hash, 
+                    char *key_trigger, char *key_action, char *key_rule) {
+    
+
+}
+
+void process_dec_request(int fd) 
+{
+
+}
+
+void process_invalid_cmd(int fd)
+{
+
+}
+
+void register_user(int fd, char *username, char *password)
+{
+
+}
 
 /// Commands are:
 /// REGUSR <username> <password>
 /// REGRUL <username> <password> <rule id> <rule binary hash in hex> <n> <m> <K_t1 in hex>..<K_tn> <K_a1 in hex>..<K_an> <K_rule in hex>
 /// REQRUL : keystore sends back a challenge, enclave responds with attestation report signed with challenge, keystore responds with decryption key
 void process_request(char *command_buf, int cmd_size, int fd) {
-    if (cmd_size < 6) return
+    if (cmd_size < 6) return;
     if (strncmp(command_buf, "REGUSR", (size_t)6) == 0) {
         char *username = strtok(&command_buf[5], " ");
         if (!username) return;
@@ -265,6 +287,12 @@ void process_request(char *command_buf, int cmd_size, int fd) {
     }
 }
 
+//TODO: Implement this -- dummy impl for now
+int ocall_wait_for_client_connection()
+{
+    return 10;
+}
+
 int start_request_server(char *bind_addr, int bind_port) {
     printf("Starting Keystore Server\n");
     
@@ -281,7 +309,7 @@ int start_request_server(char *bind_addr, int bind_port) {
         int ret = read_buffer(sslCli, command_buf, MAX_COMMAND_SIZE - 1);
         command_buf[ret] = 0;
         
-        process_request(command_buf, fd);
+        process_request(command_buf, ret, fpSendRecv);
     }
 }
 
@@ -289,12 +317,15 @@ int start_request_server(char *bind_addr, int bind_port) {
 int main(int argc, char** argv)
 {
 
-
+    WOLFSSL* sslCli;
+    WOLFSSL_CTX* ctxCli = NULL;
     wolfSSL_Init();
 
+    generate_attested_cert_with_evidence(NULL, NULL, 0, NULL, NULL);
     /* Example usage */
     // sslServ = Server(ctxServ, "ECDHE-RSA-AES128-SHA", 1);
     // Turning off verification for now
+    /*
     start_request_server();
 
     if (sslCli == NULL) {
@@ -308,7 +339,7 @@ int main(int argc, char** argv)
     while (ret != SSL_SUCCESS) {
         int error;
         printf("Connecting..\n");
-        /* client connect */
+
         ret |= wolfSSL_connect(sslCli);
         error = wolfSSL_get_error(sslCli, 0);
         if (ret != SSL_SUCCESS) {
@@ -324,11 +355,11 @@ int main(int argc, char** argv)
     }
 
 
-    /* read and write */
+
     while (1) {
         int error;
 
-        /* client send/read */
+
         msgSz = (int) strlen(msg);
         ret   = wolfSSL_write(sslCli, msg, msgSz);
         error = wolfSSL_get_error(sslCli, 0);
@@ -348,9 +379,9 @@ int main(int argc, char** argv)
 
         break;
 
-    }
+    }*/
 
-cleanup:
+//cleanup:
     printf("Cleaning up...\n");
     return 0;
     wolfSSL_shutdown(sslCli);
