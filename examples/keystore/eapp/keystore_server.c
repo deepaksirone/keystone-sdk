@@ -202,7 +202,7 @@ WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite)
 
 int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
 {
-	int64_t pos = 0;
+	int64_t pos = 0;printf("Before MakeSelfCert\n");
 	int64_t ret = wolfSSL_read(sslcli, buffer, sz);
     int error;
 

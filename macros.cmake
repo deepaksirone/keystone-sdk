@@ -134,7 +134,7 @@ macro(add_eyrie_runtime target_name tag plugins) # the files are passed via ${AR
     GIT_REPOSITORY git@github.com:deepaksirone/keystone-runtime.git
     GIT_TAG ${tag}
     CONFIGURE_COMMAND ""
-    UPDATE_COMMAND git fetch
+    UPDATE_COMMAND git pull origin tap
     BUILD_COMMAND ./build.sh ${plugins}
     BUILD_IN_SOURCE TRUE
     INSTALL_COMMAND "")
@@ -159,8 +159,8 @@ macro(add_wolfssl target_name tag libc plugins)
     GIT_REPOSITORY git@github.com:deepaksirone/wolfssl.git
     GIT_TAG ${tag}
     CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=${wolfssl_install} --exec-prefix=${wolfssl_install} --enable-filesystem=no --enable-certgen --enable-certreq --enable-keygen --enable-sessioncerts --enable-static --disable-shared --enable-harden --enable-singlethreaded --host=riscv64-unknown-linux-${libc} CC=riscv64-unknown-linux-${libc}-gcc AR=riscv64-unknown-linux-${libc}-ar RANLIB=riscv64-unknown-linux-${libc}-ranlib
-    UPDATE_COMMAND git fetch
-    BUILD_COMMAND make install
+    UPDATE_COMMAND git pull origin keystone_random
+    BUILD_COMMAND make install EXTRA_CFLAGS=${plugins}
     BUILD_IN_SOURCE TRUE
     INSTALL_COMMAND ""
   )
