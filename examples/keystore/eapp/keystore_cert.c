@@ -39,8 +39,10 @@ int generate_attested_cert_with_evidence(
     const unsigned char* subject_name,
     const void* optional_parameters,
     size_t optional_parameters_size,
-    uint8_t** output_certificate,
-    size_t* output_certificate_size) {
+    byte** output_certificate,
+    int* output_certificate_size,
+    byte** pvtkey,
+    int *pvtkey_size) {
 
     RsaKey gen_key;
     Cert   *cert = (Cert *) malloc(sizeof(Cert));
@@ -87,7 +89,7 @@ int generate_attested_cert_with_evidence(
 
     if ((ret = wc_SetCustomExtension(cert, 1, "1.2.3.4.5", evidence_ext, evidence_sz)) < 0) {
         printf("Error setting evidence extension: %d", ret);
-        return ret;
+        return -1;
     }
     
     printf("Before MakeSelfCert\n");
@@ -95,16 +97,21 @@ int generate_attested_cert_with_evidence(
     int certSz = wc_MakeSelfCert(cert, derCert, 8000 * sizeof(byte), &gen_key, &rng);
     if (certSz < 0) {
         printf("Error in cert generation!\n");
+        return -1;
     }
 
-    
-    byte *pemCert = (byte *) malloc(8000 * sizeof(byte));
-    printf("Before DerToPem\n");
-    int pemSz = wc_DerToPem(derCert, certSz, pemCert, 8000 * sizeof(byte), CERT_TYPE);
-    if (pemSz < 0) {
-        printf("Error in DER to PEM conversion\n");
+    byte *rsa_key = (byte *)malloc(4096 * sizeof(byte));
+    int rsa_key_size = wc_RsaKeyToDer(&gen_key, rsa_key, 4096 * sizeof(byte));
+    if (rsa_key_size < 0) {
+        printf("Error in writing key to DER format\n");
+        return -1;
     }
 
-    printf("PEM cert: \n%s\n", pemCert);
-    return ret;     
+    *output_certificate = derCert;
+    *output_certificate_size = certSz;
+
+    *pvtkey = rsa_key;
+    *pvtkey_size = rsa_key_size;
+
+    return 0;
 }

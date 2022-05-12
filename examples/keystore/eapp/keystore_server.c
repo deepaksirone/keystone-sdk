@@ -101,54 +101,9 @@ int CbIOSend(WOLFSSL *ssl, char *buf, int sz, void *ctx)
     return ret;
 }
 
-WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify)
-{
-    WOLFSSL*     ssl = NULL;
-    int ret;
 
-    if ((ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method())) == NULL) {
-        printf("Error in setting client ctx\n");
-        return NULL;
-    }
-
-    if (doVerify == 1) {
-        /*if ((wolfSSL_CTX_load_verify_locations(ctx, peerAuthority, 0))
-                                                              != SSL_SUCCESS) {
-            printf("Failed to load CA (peer Authority) file\n");
-            return NULL;
-        }*/
-    } else {
-        wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, 0);
-    }
-
-    if (setSuite == 1) {
-        if ((ret = wolfSSL_CTX_set_cipher_list(ctx, suite)) != SSL_SUCCESS) {
-            printf("ret = %d\n", ret);
-            printf("can't set cipher\n");
-            wolfSSL_CTX_free(ctx);
-            return NULL;
-        }
-    } else {
-        (void) suite;
-    }
-
-    wolfSSL_SetIORecv(ctx, CbIORecv);
-    wolfSSL_SetIOSend(ctx, CbIOSend);
-
-    if ((ssl = wolfSSL_new(ctx)) == NULL) {
-        printf("issue when creating ssl\n");
-        wolfSSL_CTX_free(ctx);
-        return NULL;
-    }
-
-    wolfSSL_set_fd(ssl, fpSendRecv);
-
-    return ssl;
-}
-
-/*
-// Same as client, except has a private fd which can be used with the ctx param in the I/O callbacks
-WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite)
+WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite, byte *certBuf, 
+        int cert_buf_sz, byte* pvtKeyBuf, int pvt_key_buf)
 {
     WOLFSSL* ssl;
     int ret = -1;
@@ -163,15 +118,13 @@ WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite)
                                                         SSL_FILETYPE_ASN1);
 #endif
 
-    if (wolfSSL_CTX_use_certificate_file(ctx, serverCert, SSL_FILETYPE_PEM)
-                                                    != SSL_SUCCESS) {
-        printf("trouble loading server cert file\n");
+    if (wolfSSL_CTX_use_certificate_buffer(ctx, certBuf, cert_buf_sz, SSL_FILETYPE_ASN1) != SSL_SUCCESS) {
+        printf("Error loading certificate from buffer\n");
         return NULL;
     }
 
-    if (wolfSSL_CTX_use_PrivateKey_file(ctx, serverKey, SSL_FILETYPE_PEM)
-                                                    != SSL_SUCCESS) {
-        printf("trouble loading server key file\n");
+    if (wolfSSL_CTX_use_PrivateKey_buffer(ctx, pvtKeyBuf, pvt_key_buf, SSL_FILETYPE_ASN1) != SSL_SUCCESS) {
+        printf("Error loading server pvt key buffer\n");
         return NULL;
     }
 
@@ -195,9 +148,10 @@ WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite)
         return NULL;
     }
 
-    wolfSSL_set_fd(ssl, fpRecv);
+    wolfSSL_set_fd(ssl, fpSendRecv);
     return ssl;
-}*/
+}
+
 
 
 int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
@@ -293,7 +247,7 @@ int ocall_wait_for_client_connection()
     return 10;
 }
 
-int start_request_server(char *bind_addr, int bind_port) {
+int start_request_server(WOLFSSL *sslServ, char *bind_addr, int bind_port) {
     printf("Starting Keystore Server\n");
     
     while (1) {
@@ -301,12 +255,7 @@ int start_request_server(char *bind_addr, int bind_port) {
         //TODO: Need to allocate private fd on the heap if we want to parallelize
         fpSendRecv = ocall_wait_for_client_connection();
 
-        WOLFSSL* sslCli;
-        WOLFSSL_CTX* ctxCli = NULL;
-
-        sslCli = Client(ctxCli, "let-wolfssl-decide", 0, 0);
-
-        int ret = read_buffer(sslCli, command_buf, MAX_COMMAND_SIZE - 1);
+        int ret = read_buffer(sslServ, command_buf, MAX_COMMAND_SIZE - 1);
         command_buf[ret] = 0;
         
         process_request(command_buf, ret, fpSendRecv);
@@ -317,76 +266,32 @@ int start_request_server(char *bind_addr, int bind_port) {
 int main(int argc, char** argv)
 {
 
-    WOLFSSL* sslCli;
-    WOLFSSL_CTX* ctxCli = NULL;
+    WOLFSSL* sslServ;
+    WOLFSSL_CTX* ctxServ = NULL;
     wolfSSL_Init();
 
-    generate_attested_cert_with_evidence(NULL, NULL, 0, NULL, NULL);
-    /* Example usage */
-    // sslServ = Server(ctxServ, "ECDHE-RSA-AES128-SHA", 1);
-    // Turning off verification for now
-    /*
-    start_request_server();
+    byte *cert_buf;
+    int cert_size;
 
-    if (sslCli == NULL) {
-        printf("Failed to start client\n");
-        goto cleanup;
+    byte *pvt_key;
+    int pvtkey_size;
+
+    if (generate_attested_cert_with_evidence(NULL, NULL, 0, &cert_buf, &cert_size, 
+                &pvt_key, &pvtkey_size) < 0) {
+        printf("Error in certificate generation\n");
+        return -1;
     }
 
-    ret = SSL_FAILURE;
+    sslServ = Server(ctxServ, "let-wolfssl-choose", 0, cert_buf, cert_size, pvt_key, pvtkey_size);
 
-    printf("Starting client\n");
-    while (ret != SSL_SUCCESS) {
-        int error;
-        printf("Connecting..\n");
-
-        ret |= wolfSSL_connect(sslCli);
-        error = wolfSSL_get_error(sslCli, 0);
-        if (ret != SSL_SUCCESS) {
-            if (error != SSL_ERROR_WANT_READ &&
-                error != SSL_ERROR_WANT_WRITE) {
-                wolfSSL_free(sslCli);
-                wolfSSL_CTX_free(ctxCli);
-                printf("client ssl connect failed\n");
-                goto cleanup;
-            }
-        }
-        printf("Client connected successfully...\n");
-    }
-
-
-
-    while (1) {
-        int error;
-
-
-        msgSz = (int) strlen(msg);
-        ret   = wolfSSL_write(sslCli, msg, msgSz);
-        error = wolfSSL_get_error(sslCli, 0);
-        if (ret != msgSz) {
-            if (error != SSL_ERROR_WANT_READ &&
-                error != SSL_ERROR_WANT_WRITE) {
-                printf("client write failed\n");
-                break;
-            }
-        }
-
-	    ret = read_buffer(sslCli, reply, MAXSZ - 1);
-        if (ret > 0) {
-	        reply[ret] = '\0';
-	        printf("Client Received Reply: %s\n", reply);
-        }
-
-        break;
-
-    }*/
-
-//cleanup:
     printf("Cleaning up...\n");
     return 0;
-    wolfSSL_shutdown(sslCli);
+
+    wolfSSL_shutdown(sslServ);
+    /*
     wolfSSL_free(sslCli);
     wolfSSL_CTX_free(ctxCli);
-    wolfSSL_Cleanup();
+    wolfSSL_Cleanup();*/
+
     /* close the streams so client can reset file contents */
 }
