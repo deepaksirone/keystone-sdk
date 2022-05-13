@@ -36,6 +36,9 @@ void* wait_for_client_pubkey();
 void init_connection_wrapper(void *buffer);
 int32_t initiate_connection(char *hostname, int32_t port);
 
+void init_connection_serv_wrapper(void *buffer);
+int32_t initiate_connection_serv(char *hostname, int32_t port);
+
 void send_message_fd_wrapper(void *buffer);
 size_t send_message_fd(int32_t fd, void *buffer, size_t size);
 

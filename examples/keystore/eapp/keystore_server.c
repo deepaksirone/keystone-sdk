@@ -250,16 +250,45 @@ int ocall_wait_for_client_connection()
 int start_request_server(WOLFSSL *sslServ, char *bind_addr, int bind_port) {
     printf("Starting Keystore Server\n");
     
+    int bind_addr_len = strlen(bind_addr);
+    connection_data_t *data = malloc(sizeof(connection_data_t) + bind_addr_len * sizeof(unsigned char));
+    data->portnumber = bind_port;
+    memcpy(data->hostname, bind_addr, bind_addr_len);
+    int servSocket = ocall_init_serv_connection(data, sizeof(connection_data_t) + bind_addr_len * sizeof(unsigned char));
+
+    printf("ServSocket: %d\n", servSocket);
+
     while (1) {
 
         //TODO: Need to allocate private fd on the heap if we want to parallelize
-        fpSendRecv = ocall_wait_for_client_connection();
+        fpSendRecv = ocall_wait_for_conn(servSocket);
 
-        int ret = read_buffer(sslServ, command_buf, MAX_COMMAND_SIZE - 1);
+        printf("ClientSocket: %d\n", fpSendRecv);
+
+        int ret = SSL_FAILURE;
+        while (ret != SSL_SUCCESS) {
+            int error;
+            ret = wolfSSL_accept(sslServ);
+            error = wolfSSL_get_error(sslServ, 0);
+            if (ret != SSL_SUCCESS) {
+                if (error != SSL_ERROR_WANT_READ &&
+                    error != SSL_ERROR_WANT_WRITE) {
+                    wolfSSL_free(sslServ);
+                    printf("server ssl accept failed ret = %d error = %d wr = %d\n",
+                                               ret, error, SSL_ERROR_WANT_READ);
+                    return -1;
+                                        
+                }
+            }
+        }
+
+        ret = read_buffer(sslServ, command_buf, MAX_COMMAND_SIZE - 1);
         command_buf[ret] = 0;
         
         process_request(command_buf, ret, fpSendRecv);
     }
+
+    return 0;
 }
 
 

@@ -55,6 +55,20 @@ int32_t ocall_init_connection(connection_data_t *data, size_t len) {
   return fd;
 }
 
+int32_t ocall_init_serv_connection(connection_data_t *data, size_t len) {
+  int32_t fd;
+  ocall(OCALL_INIT_SERV_CONN, data, len, &fd, sizeof(int32_t));
+
+  return fd;
+}
+
+int32_t ocall_wait_for_conn(int32_t fd) {
+  int32_t client_fd;
+  ocall(OCALL_WAIT_FOR_CONN, &fd, sizeof(int32_t), &client_fd, sizeof(int32_t));
+
+  return client_fd;
+}
+
 
 size_t ocall_send_buffer_fd(network_send_data_t *data, size_t size) {
   size_t retval;

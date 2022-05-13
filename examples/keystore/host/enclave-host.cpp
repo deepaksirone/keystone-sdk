@@ -166,6 +166,51 @@ int32_t initiate_connection(char *hostname, int32_t port) {
 }	
 
 
+int32_t initiate_connection_serv(char *hostname, int32_t port) {
+
+	int fd_sock;
+	struct sockaddr_in server_addr;
+	struct hostent *hostnm;
+
+	fd_sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd_sock < 0) {
+		printf("[init_conn_serv] Failed to open socket\n");
+		exit(-1);
+	}
+
+	memset(&server_addr, 0, sizeof(server_addr));
+  /*
+	hostnm = gethostbyname(hostname);
+
+	if (hostnm == NULL) {
+		printf("[init_conn_serv] Gethostname failed\n");
+		exit(-1);
+	}*/
+
+	server_addr.sin_family      = AF_INET;
+  server_addr.sin_port        = htons(port);
+  // TODO: Change this to support a particular listen address
+  // Does not really matter because this is under the attackers control
+  server_addr.sin_addr.s_addr = INADDR_ANY;//*((unsigned long *)hostnm->h_addr);
+
+	if (bind(fd_sock, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
+      printf("[init_conn_serv] Error binding socket");
+      exit(-1);
+  }
+
+  if (listen(fd_sock, 10) < 0) {
+      printf("[init_conn_serv] Error listening\n");
+      exit(-1);
+  }
+
+	return fd_sock;
+}
+
+int32_t accept_connection(int32_t servfd) {
+  int32_t ret = accept(servfd, NULL, NULL);
+  return ret;
+}
+
 size_t send_message_fd(int32_t fd, void *buffer, size_t size) {
 	size_t ret = write(fd, buffer, size);
 	fsync(fd);

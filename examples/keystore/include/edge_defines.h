@@ -11,5 +11,7 @@
 #define OCALL_SEND_FD 8
 #define OCALL_RECV_FD 9
 #define OCALL_TERM_FD 10
+#define OCALL_INIT_SERV_CONN 11
+#define OCALL_WAIT_FOR_CONN 12
 
 #endif /* _EDGE_DEFINES_H_ */
