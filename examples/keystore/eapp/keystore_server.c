@@ -11,14 +11,19 @@
 #include <wolfssl/wolfcrypt/types.h>
 #include "encl_message.h"
 #include "edge_wrapper.h"
-#include "keystone_cert.h"
+#include "keystore_cert.h"
+#include "keystore_user.h"
+#include "keystore_rule.h"
+#include "app/syscall.h"
 
 #define MAXSZ 65535
 #define MAX_COMMAND_SIZE 65535
 #define MAX_REQUEST_SIZE 65535
+#define USER_RECORD_SIZE MAXSZ
+#define SYSCALL_GENRAND_WORD 1006
 
 char command_buf[MAX_COMMAND_SIZE];
-char request_buf[MAX_REQUEST_SIZE];
+byte user_record[USER_RECORD_SIZE];
 
 int strncmp(const char *s1, const char *s2, size_t n);
 int copy_from_shared(void* dst, uintptr_t offset, size_t data_len);
@@ -36,18 +41,25 @@ struct WOLFSSL_SOCKADDR {
 static int fpSendRecv;
 static int verboseFlag = 0;
 
+uintptr_t rand_gen_keystone(void)
+{
+    uintptr_t ret = SYSCALL_0(SYSCALL_GENRAND_WORD);
+    return ret;
+}
+
+
 /*--------------------------------------------------------------*/
 /* Function implementations */
 /*--------------------------------------------------------------*/
 int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 {
     (void) ssl; /* will not need ssl context, just using the file system */
-    (void) ctx; /* will not need ctx, we're just using the file system */
+ /* will not need ctx, we're just using the file system */
     int ret = -1;
     int i;
 
 	network_recv_request_t req;
-	req.fd = fpSendRecv;
+	req.fd = *((int *)ctx);
 	req.req_size = sz;
 
     struct edge_data msg;
@@ -74,13 +86,13 @@ int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 int CbIOSend(WOLFSSL *ssl, char *buf, int sz, void *ctx)
 {
     (void) ssl; /* will not need ssl context, just using the file system */
-    (void) ctx; /* will not need ctx, we're just using the file system */
+     /* will not need ctx, we're just using the file system */
     int ret;
     int i;
 
 	// Naive implementation with copying, can optimize by sending just the user pointer
 	network_send_data_t *data = malloc(sizeof(network_send_data_t) + sz * sizeof(char));
-	data->fd = fpSendRecv;
+	data->fd = *((int *)ctx);
 	data->data_len = sz;
 	memcpy(data->data, buf, sz);
 
@@ -169,16 +181,82 @@ int64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
     if (ret < 0) {
         if (error != SSL_ERROR_WANT_READ &&
                 error != SSL_ERROR_WANT_WRITE) {
-                printf("client read failed\n");
+                printf("server read failed\n");
         }
     }
 
 	return pos;
 }
 
-void register_rule(int fd, char *username, char *password, char *rule_id, char *rule_bin_hash, 
-                    char *key_trigger, char *key_action, char *key_rule) {
+int64_t write_buffer(WOLFSSL *sslserv, void *buffer, size_t sz)
+{
+    int64_t pos = 0;
+    int64_t ret = wolfSSL_write(sslserv, buffer, sz);
+    int error;
+
+    while (ret > 0) {
+        pos += ret;
+        ret = wolfSSL_write(sslserv, (void *) (buffer + pos), sz - pos);
+    }
+
+    error = wolfSSL_get_error(sslserv, 0);
+    if (ret < 0) {
+        if (error != SSL_ERROR_WANT_READ &&
+                error != SSL_ERROR_WANT_WRITE) {
+                printf("server write failed\n");
+        }
+    }
+
+    return pos;
+}
+
+void error_response(const char *response, WOLFSSL *sslServ) {
+    write_buffer(sslServ, response, strlen(response));
+}
+
+void register_rule(char *username, char *password, char *rule_id, char *rule_bin_hash, 
+                    char *key_trigger, char *key_action, char *key_rule, WOLFSSL *sslServ) {
     
+    struct enc_keystore_user e_usr;
+    int user_exists = ocall_get_user_record(username, &e_usr, sizeof(enc_keystone_user));
+    if (!user_exists) {
+        return error_response("[Reg Rule] User does not exist");
+    }
+
+    struct sealing_key key_buffer;
+    int ret = get_sealing_key((void *)&key_buffer, sizeof(key_buffer), (void *)username, strlen(username));
+    if (ret != 0) {
+        return error_response("[Reg Rule] Internal Error 1", sslServ);
+    }
+
+    Aes enc;
+    wc_AesInit(&enc, NULL, INVALID_DEVID);
+
+    if ((ret = wc_AesGcmSetKey(&enc, key_buffer.key, 32)) != 0) {
+        return error_response("[Reg Rule] Internal Error 2", sslServ);
+    }
+
+    struct keystore_user usr;
+    char *iv = generate_iv(password);
+    if ((ret = wc_AesGcmDecrypt(&aes, &usr, &e_usr, sizeof(struct enc_keystone_user), iv, 16, 
+            e_usr.auth_tag, 16, password, strlen(password))) != 0) {
+        return error_response("[Reg Rule] Invalid Password 1", sslServ);
+    }
+
+    // Redundant Check for Password here
+    if (strncmp(usr.password, password, 20) != 0) {
+        return error_response("[Reg Rule] Invalid Password 2", sslServ);
+    }
+
+    // User provided correct credentials
+    struct keystore_rule rule;
+    uintptr_t rid = atoll(rule_id);
+    int rule_exists = ocall_get_rule_record(usr.uid, rid, &rule, sizeof(rule));
+    if (rule_exists) {
+        return error_response("[Reg Rule] Rule Exists", sslServ);
+    }
+
+
 
 }
 
@@ -192,8 +270,60 @@ void process_invalid_cmd(int fd)
 
 }
 
-void register_user(int fd, char *username, char *password)
+char *generate_iv(char *password) {
+    char *res = (char *) malloc(16 * sizeof(char));
+    int len_passwd = strlen(password);
+    for (int i = 0, j = 0; i < 16; i++) {
+        res[i] = password[j % len_passwd];
+        j++;
+    }
+
+    return res;
+}
+
+void register_user(char *username, char *password, char *user_id, WOLFSSL *sslServ)
 {
+    struct enc_keystore_user e_usr;
+    int userExists = ocall_get_user_record(username, &e_usr, sizeof(enc_keystone_user));
+    if (userExists) {
+        return error_response("User Exists", sslServ);
+    }
+
+    struct keystore_user usr;
+    uintptr_t uid = rand_gen_keystone();
+    usr.uid = uid;
+    strncpy(usr.username, username, 20);
+    strncpy(usr.password, password, 20);
+
+    struct sealing_key key_buffer;
+    int ret = get_sealing_key((void *)&key_buffer, sizeof(key_buffer), (void *)username, strlen(username));
+    if (ret != 0) {
+        return error_response("Internal Error 1", sslServ);
+    }
+
+    Aes enc;
+    wc_AesInit(&enc, NULL, INVALID_DEVID);
+
+    if ((ret = wc_AesGcmSetKey(&enc, key_buffer.key, 32)) != 0) {
+        return error_response("Internal Error 2", sslServ);
+    }
+
+    // Repeat Password till 16 bytes to generate IV
+    char *iv = generate_iv(password);
+    struct enc_keystore_user enc_usr;
+
+    if ((ret = wc_AesGcmEncrypt(&enc, enc_user.ciphertext, &usr, sizeof(struct keystone_user), 
+                iv, 16, enc_user.auth_tag, sizeof(enc_user.auth_tag), password, strlen(password))) != 0) {
+        return error_response("Internal Error 3", sslServ);
+    }
+
+    ret = ocall_set_user_record(username, &enc_user, sizeof(enc_user));
+
+    if (ret != 0) {
+        return error_response("Internal Error 4", sslServ);
+    }
+
+    return error_response("REGUSR - Success", sslServ);
 
 }
 
@@ -201,16 +331,18 @@ void register_user(int fd, char *username, char *password)
 /// REGUSR <username> <password>
 /// REGRUL <username> <password> <rule id> <rule binary hash in hex> <n> <m> <K_t1 in hex>..<K_tn> <K_a1 in hex>..<K_an> <K_rule in hex>
 /// REQRUL : keystore sends back a challenge, enclave responds with attestation report signed with challenge, keystore responds with decryption key
-void process_request(char *command_buf, int cmd_size, int fd) {
+void process_request(char *command_buf, int cmd_size, WOLFSSL *sslServ) {
     if (cmd_size < 6) return;
     if (strncmp(command_buf, "REGUSR", (size_t)6) == 0) {
+        char user_id[20];
+
         char *username = strtok(&command_buf[5], " ");
-        if (!username) return;
+        if (!username || strlen(username) > 20) return error_response("Invalid Username", sslServ); 
 
         char *password = strtok(NULL, " ");
-        if (!password) return;
+        if (!password || strlen(password) > 20) return error_response("Invalid Password", sslServ);
         
-        register_user(fd, username, password);
+        register_user(username, password, user_id, sslServ);
     } else if (strncmp(command_buf, "REGRUL", (size_t)6) == 0) {
         char *username = strtok(&command_buf[5], " ");
         if (!username) return;
@@ -233,7 +365,8 @@ void process_request(char *command_buf, int cmd_size, int fd) {
         char *key_rule = strtok(NULL, " ");
         if (!key_rule) return;
 
-        register_rule(fd, username, password, rule_id, rule_bin_hash, key_trigger, key_action, key_rule);
+        register_rule(fd, username, password, rule_id, 
+            rule_bin_hash, key_trigger, key_action, key_rule, sslServ);
     } else if (strncmp(command_buf, "REQRUL", (size_t)6) == 0) {
         process_dec_request(fd);
     } else {
@@ -252,6 +385,8 @@ int start_request_server(WOLFSSL *sslServ, char *bind_addr, int bind_port) {
     
     int bind_addr_len = strlen(bind_addr);
     connection_data_t *data = malloc(sizeof(connection_data_t) + bind_addr_len * sizeof(unsigned char));
+    int *clientfd = malloc(sizeof(int));
+
     data->portnumber = bind_port;
     memcpy(data->hostname, bind_addr, bind_addr_len);
     int servSocket = ocall_init_serv_connection(data, sizeof(connection_data_t) + bind_addr_len * sizeof(unsigned char));
@@ -261,9 +396,12 @@ int start_request_server(WOLFSSL *sslServ, char *bind_addr, int bind_port) {
     while (1) {
 
         //TODO: Need to allocate private fd on the heap if we want to parallelize
-        fpSendRecv = ocall_wait_for_conn(servSocket);
+        *clientfd = ocall_wait_for_conn(servSocket);
 
-        printf("ClientSocket: %d\n", fpSendRecv);
+        printf("ClientSocket: %d\n", *clientfd);
+
+        wolfSSL_SetIOReadCtx(sslServ, (void *) clientfd);
+        wolfSSL_SetIOWriteCtx(sslServ, (void *) clientfd);
 
         int ret = SSL_FAILURE;
         while (ret != SSL_SUCCESS) {
@@ -284,8 +422,8 @@ int start_request_server(WOLFSSL *sslServ, char *bind_addr, int bind_port) {
 
         ret = read_buffer(sslServ, command_buf, MAX_COMMAND_SIZE - 1);
         command_buf[ret] = 0;
-        
-        process_request(command_buf, ret, fpSendRecv);
+
+        process_request(command_buf, ret, sslServ);
     }
 
     return 0;
