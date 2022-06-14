@@ -16,6 +16,7 @@
 #include "keystore_user.h"
 #include "keystore_rule.h"
 #include "keystore_report.h"
+#include "keystore_request.h"
 #include "app/syscall.h"
 
 #define MAXSZ 65535
@@ -43,7 +44,7 @@ struct WOLFSSL_SOCKADDR {
 static int fpSendRecv;
 static int verboseFlag = 0;
 
-uintptr_t rand_gen_keystone(void)
+static uintptr_t rand_gen_keystone(void)
 {
     uintptr_t ret = SYSCALL_0(SYSCALL_GENRAND_WORD);
     return ret;
@@ -131,7 +132,7 @@ int CbIOSend(WOLFSSL *ssl, char *buf, int sz, void *ctx)
         printf("\n/*-------------------- CLIENT SENDING -----------------*/\n");
     } else {
         (void) i;
-    }
+    }/* Definition of AT_* constants */
     
     free(data);
     return ret;
@@ -234,20 +235,24 @@ int64_t write_buffer(WOLFSSL *sslserv, void *buffer, size_t sz)
     return pos;
 }
 
-void error_response(const char *response, WOLFSSL *sslServ) {
+void error_response(char *response, WOLFSSL *sslServ) {
     write_buffer(sslServ, response, strlen(response));
+    wolfSSL_shutdown(sslServ);
 }
 
 void register_rule(char *username, char *password, char *rule_id, char *rule_bin_hash, char *runtime_bin_hash,
-                    char **key_triggers, int num_triggers, char **key_actions, int num_actions
+                    char **key_triggers, int num_triggers, char **key_actions, int num_actions,
                     char *key_rule, WOLFSSL *sslServ) {
     
     //TODO: Pass a struct into this function
     struct enc_keystore_user e_usr;
-    int user_exists = ocall_get_user_record(username, &e_usr, sizeof(struct enc_keystore_user));
+    struct edge_data msg;
+    int user_exists = ocall_get_user_record(username, &msg);
     if (!user_exists) {
         return error_response("[Reg Rule] User does not exist", sslServ);
     }
+
+    copy_from_shared(&e_usr, msg.offset, msg.size);
 
     struct sealing_key key_buffer;
     int ret = get_sealing_key((void *)&key_buffer, sizeof(key_buffer), (void *)username, strlen(username));
@@ -264,8 +269,8 @@ void register_rule(char *username, char *password, char *rule_id, char *rule_bin
 
     struct keystore_user usr;
     char *iv = generate_iv(password);
-    if ((ret = wc_AesGcmDecrypt(&enc, &usr, &e_usr, sizeof(struct enc_keystone_user), iv, 16, 
-            e_usr.auth_tag, 16, password, strlen(password))) != 0) {
+    if ((ret = wc_AesGcmDecrypt(&enc, (byte *)&usr, (byte *)&e_usr.ciphertext, sizeof(struct keystore_user), (byte *)iv, 16, 
+            (byte *)&e_usr.auth_tag, 16, (byte *)password, strlen(password))) != 0) {
         return error_response("[Reg Rule] Invalid Password 1", sslServ);
     }
 
@@ -278,29 +283,29 @@ void register_rule(char *username, char *password, char *rule_id, char *rule_bin
     uintptr_t rid = atoll(rule_id);
 
     // Check if rule exists
-    int rule_exists = ocall_get_rule_record(usr.uid, rid, NULL, 0);
+    int rule_exists = ocall_get_rule_record(usr.uid, rid, NULL);
     if (rule_exists) {
         return error_response("[Reg Rule] Rule Exists", sslServ);
     }
 
     struct keystore_rule rule;
     // Initialize Rule
-    memset(rule, 0, sizeof(rule));
+    memset((void *)&rule, 0, sizeof(rule));
 
     rule.rid = rid;
     rule.num_actions = num_actions;
     rule.num_triggers = num_triggers;
 
     for(int i = 0; i < num_triggers; i++) {
-        strncpy(rule.key_trigger[i], key_triggers[i], 20);
+        strncpy(rule.key_trigger[i], key_triggers[i], TRIGGER_KEY_LEN);
     }
 
     for(int i = 0; i < num_actions; i++) {
-        strncpy(rule.key_action[i], key_actions[i], 20);
+        strncpy(rule.key_action[i], key_actions[i], ACTION_KEY_LEN);
     }
 
-    memcpy(rule.rule_bin_hash, rule_bin_hash, 64);
-    memcpy(rule.runtime_bin_hash, runtime_bin_hash, 64);
+    memcpy(rule.rule_bin_hash, rule_bin_hash, RULE_BIN_HASH_LEN);
+    memcpy(rule.runtime_bin_hash, runtime_bin_hash, RUNTIME_BIN_HASH_LEN);
 
     //Encrypt rule
     Aes enc_r;
@@ -311,8 +316,8 @@ void register_rule(char *username, char *password, char *rule_id, char *rule_bin
 
     char uid_rid[sizeof(usr.uid) + sizeof(rid) + 1];
     memset(uid_rid, 0, sizeof(uid_rid));
-    memcpy(uid_rid, usr.uid, sizeof(rid));
-    memcpy(&uid_rid[sizeof(usr.uid)], rid, sizeof(rid));
+    memcpy(uid_rid, &usr.uid, sizeof(rid));
+    memcpy(&uid_rid[sizeof(usr.uid)], &rid, sizeof(rid));
 
     struct sealing_key key_buffer_rule;
     ret = get_sealing_key((void *)&key_buffer_rule, sizeof(struct sealing_key), (void *)uid_rid, sizeof(uid_rid));
@@ -331,12 +336,12 @@ void register_rule(char *username, char *password, char *rule_id, char *rule_bin
     memcpy(hash_concat, rule_bin_hash, 64);
     memcpy(&hash_concat[64], runtime_bin_hash, 64);
 
-    if ((ret = wc_AesGcmEncrypt(&enc_r, &enc_rule.rule, &rule, sizeof(struct keystore_rule), 
-                iv1, 16, enc_rule.auth_tag, sizeof(enc_rule.auth_tag), hash_concat, 128)) != 0) {
+    if ((ret = wc_AesGcmEncrypt(&enc_r, (byte *)&enc_rule.rule, (byte *)&rule, sizeof(struct keystore_rule), 
+                (byte *)iv1, 16, (byte *)&enc_rule.auth_tag, sizeof(enc_rule.auth_tag), (byte *)hash_concat, 128)) != 0) {
         return error_response("[Reg Rule] Internal Error 3", sslServ);
     }
     
-    int r = ocall_set_rule_record(usr.uid, rid, &enc_rule, sizeof(enc_rule));
+    int r = ocall_set_rule_record(usr.uid, rid, enc_rule);
     if (r) {
         return error_response("[Reg Rule] Error setting record", sslServ);
     }
@@ -347,23 +352,26 @@ void register_rule(char *username, char *password, char *rule_id, char *rule_bin
 
 void process_dec_request(char *command_buf, WOLFSSL *sslServ) 
 {
-    struct runtime_request_t rpt;
-    memcpy(&rpt, command_buf, sizeof(struct runtime_request_t));
+    runtime_request_t rpt;
+    memcpy(&rpt, command_buf, sizeof(runtime_request_t));
 
     // Get the rule
     struct enc_keystore_rule enc_rule;
-    int ret = ocall_get_rule_record(rpt.user_id, rpt.rule_id, &enc_rule, sizeof(struct enc_keystore_rule));
+    struct edge_data msg;
+    int ret = ocall_get_rule_record(rpt.user_id, rpt.rule_id, &msg);
     if (!ret) {
         return error_response("[proc dec request] Rule does not exist", sslServ);
     }
 
-    char *rule_bin_hash = rpt.report.enclave.hash;
-    char *runtime_bin_hash = rpt.report.sm.hash;
+    copy_from_shared(&enc_rule, msg.offset, msg.size);
+
+    byte *rule_bin_hash = rpt.report.enclave.hash;
+    byte *runtime_bin_hash = rpt.report.sm.hash;
 
     char uid_rid[sizeof(rpt.user_id) + sizeof(rpt.rule_id) + 1];
     memset(uid_rid, 0, sizeof(uid_rid));
-    memcpy(uid_rid, rpt.user_id, sizeof(rpt.user_id));
-    memcpy(&uid_rid[sizeof(rpt.user_id)], rpt.rule_id, sizeof(rpt.rule_id));
+    memcpy(uid_rid, &rpt.user_id, sizeof(rpt.user_id));
+    memcpy(&uid_rid[sizeof(rpt.user_id)], &rpt.rule_id, sizeof(rpt.rule_id));
 
     struct sealing_key key_buffer;
     ret = get_sealing_key((void *)&key_buffer, sizeof(key_buffer), (void *)uid_rid, sizeof(uid_rid));
@@ -382,20 +390,24 @@ void process_dec_request(char *command_buf, WOLFSSL *sslServ)
     memcpy(hash_concat, rule_bin_hash, 64);
     memcpy(&hash_concat[64], runtime_bin_hash, 64);
 
-    if ((ret = wc_AesGcmDecrypt(&enc, &rule, &enc_rule, sizeof(struct enc_keystore_rule), enc_rule.iv, 16, 
-            enc_rule.auth_tag, 16, hash_concat, 128)) != 0) {
-        return error_response("[Reg Rule] Invalid Password 1", sslServ);
+    if ((ret = wc_AesGcmDecrypt(&enc, (byte *)&rule, (byte *)&enc_rule.rule, sizeof(struct keystore_rule), (byte *)&enc_rule.iv, 16, 
+            (byte *)&enc_rule.auth_tag, 16, (byte *)hash_concat, 128)) != 0) {
+        return error_response("[Dec Req] Invalid Decryption", sslServ);
     }
 
     //TODO: Verify report here
     if ((memcmp(rule_bin_hash, rule.rule_bin_hash, 64) == 0) && 
         (memcmp(runtime_bin_hash, rule.runtime_bin_hash, 64) == 0)) {
         //TODO: Include the size of the transmission
+        size_t sz = sizeof(struct keystore_rule);
+        write_buffer(sslServ, &sz, sizeof(size_t));
         write_buffer(sslServ, &rule, sizeof(struct keystore_rule));
     }
+
+    wolfSSL_shutdown(sslServ);
 }
 
-void process_invalid_cmd(int fd)
+void process_invalid_cmd(WOLFSSL *sslServ)
 {
 
 }
@@ -403,8 +415,7 @@ void process_invalid_cmd(int fd)
 
 void register_user(char *username, char *password, char *user_id, WOLFSSL *sslServ)
 {
-    struct enc_keystore_user e_usr;
-    int userExists = ocall_get_user_record(username, &e_usr, sizeof(enc_keystone_user));
+    int userExists = ocall_get_user_record(username, NULL);
     if (userExists) {
         return error_response("User Exists", sslServ);
     }
@@ -432,12 +443,12 @@ void register_user(char *username, char *password, char *user_id, WOLFSSL *sslSe
     char *iv = generate_iv(password);
     struct enc_keystore_user enc_usr;
 
-    if ((ret = wc_AesGcmEncrypt(&enc, enc_user.ciphertext, &usr, sizeof(struct keystone_user), 
-                iv, 16, enc_usr.auth_tag, sizeof(enc_usr.auth_tag), password, strlen(password))) != 0) {
+    if ((ret = wc_AesGcmEncrypt(&enc, (byte *)enc_usr.ciphertext, (byte *)&usr, sizeof(struct keystore_user), 
+                (byte *)iv, 16, (byte *)&enc_usr.auth_tag, sizeof(enc_usr.auth_tag), (byte *)password, strlen(password))) != 0) {
         return error_response("Internal Error 3", sslServ);
     }
 
-    ret = ocall_set_user_record(username, &enc_usr, sizeof(enc_usr));
+    ret = ocall_set_user_record(username, enc_usr);
 
     if (ret != 0) {
         return error_response("Internal Error 4", sslServ);
@@ -521,7 +532,7 @@ void process_request(char *command_buf, int cmd_size, WOLFSSL *sslServ) {
     } else if (strncmp(command_buf, "REQRUL", (size_t)6) == 0) {
         process_dec_request(command_buf, sslServ);
     } else {
-        process_invalid_cmd(fd);
+        process_invalid_cmd(sslServ);
     }
 }
 

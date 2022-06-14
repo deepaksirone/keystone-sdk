@@ -4,6 +4,7 @@
 #include <edge_call.h>
 #include "keystone.h"
 #include "encl_message.h"
+#include "keystore_user.h"
 
 #define crypto_kx_PUBLICKEYBYTES 32
 
@@ -39,10 +40,17 @@ int32_t initiate_connection(char *hostname, int32_t port);
 void init_connection_serv_wrapper(void *buffer);
 int32_t initiate_connection_serv(char *hostname, int32_t port);
 
+void wait_for_conn_serv_wrapper(void *buffer);
+int32_t accept_connection(int32_t servfd);
+
 void send_message_fd_wrapper(void *buffer);
 size_t send_message_fd(int32_t fd, void *buffer, size_t size);
 
 void recv_message_fd_wrapper(void *buffer);
 network_recv_data_t receive_message_fd(int32_t fd, size_t size);
 
+void get_user_record_wrapper(void *buffer);
+void set_user_record_wrapper(void *buffer);
+void get_rule_record_wrapper(void *buffer);
+void set_rule_record_wrapper(void *buffer);
 #endif /* _EDGE_WRAPPER_H_ */

@@ -15,5 +15,9 @@ int32_t ocall_init_connection(connection_data_t *data, size_t len);
 int32_t ocall_init_serv_connection(connection_data_t *data, size_t len);
 int32_t ocall_wait_for_conn(int32_t fd);
 size_t ocall_send_buffer_fd(network_send_data_t *data, size_t size);
-size_t ocall_recv_buffer_fd(network_recv_request_t *data, size_t size, struct edge_data *msg); 
+size_t ocall_recv_buffer_fd(network_recv_request_t *data, size_t size, struct edge_data *msg);
+int32_t ocall_get_user_record(char *username, struct edge_data *msg);
+int32_t ocall_set_user_record(char *username, struct enc_keystore_user enc_usr);
+int32_t ocall_get_rule_record(uintptr_t userid, uintptr_t ruleid, struct edge_data *msg);
+int32_t ocall_set_rule_record(uintptr_t userid, uintptr_t ruleid, struct enc_keystore_rule enc_rule);
 #endif /* _EDGE_WRAPPER_H_ */

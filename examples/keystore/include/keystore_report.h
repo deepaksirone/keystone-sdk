@@ -25,4 +25,9 @@ struct report_t {
   byte dev_public_key[PUBLIC_KEY_SIZE];
 };
 
+struct runtime_request_t {
+    uintptr_t user_id;
+    uintptr_t rule_id;
+    struct report_t report;
+};
 #endif

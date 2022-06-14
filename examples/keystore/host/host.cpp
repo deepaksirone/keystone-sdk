@@ -4,6 +4,7 @@
 //------------------------------------------------------------------------------
 #include "edge/edge_call.h"
 #include "host/keystone.h"
+#include "keystore_datastore.h"
 
 using namespace Keystone;
 
