@@ -1,7 +1,7 @@
 set(eapp_bin keystore)
 set(eapp_src eapp/keystore_server.c eapp/keystore_cert.c eapp/edge_wrapper.c)
 set(host_bin keystore-runner)
-set(host_src host/enclave-host.cpp host/edge_wrapper.cpp)
+set(host_src host/enclave-host.cpp host/edge_wrapper.cpp host/keystore_datastore.cpp)
 set(package_name "keystore.ke")
 set(package_script "./keystore-runner keystore eyrie-rt")
 

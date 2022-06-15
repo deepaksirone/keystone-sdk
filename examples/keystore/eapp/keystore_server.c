@@ -468,10 +468,10 @@ void process_request(char *command_buf, int cmd_size, WOLFSSL *sslServ) {
         char user_id[20];
 
         char *username = strtok(&command_buf[5], " ");
-        if (!username || strlen(username) > 20) return error_response("Invalid Username", sslServ); 
+        if (!username || strlen(username) >= 20) return error_response("Invalid Username", sslServ); 
 
         char *password = strtok(NULL, " ");
-        if (!password || strlen(password) > 20) return error_response("Invalid Password", sslServ);
+        if (!password || strlen(password) >= 20) return error_response("Invalid Password", sslServ);
         
         register_user(username, password, user_id, sslServ);
     } else if (strncmp(command_buf, "REGRUL", (size_t)6) == 0) {
@@ -536,11 +536,6 @@ void process_request(char *command_buf, int cmd_size, WOLFSSL *sslServ) {
     }
 }
 
-//TODO: Implement this -- dummy impl for now
-int ocall_wait_for_client_connection()
-{
-    return 10;
-}
 
 int start_request_server(WOLFSSL *sslServ, char *bind_addr, int bind_port) {
     printf("Starting Keystore Server\n");
@@ -616,6 +611,7 @@ int main(int argc, char** argv)
     }
 
     sslServ = Server(ctxServ, "let-wolfssl-choose", 0, cert_buf, cert_size, pvt_key, pvtkey_size);
+    start_request_server(sslServ, "localhost", 7777);
 
     printf("Cleaning up...\n");
     return 0;
