@@ -46,8 +46,10 @@ const volatile uintptr_t __secure_data_tag_upper = 0x33333333;
 const volatile uintptr_t __secure_data_nonce_lower = 0x44444444;
 const volatile uintptr_t __secure_data_nonce_upper = 0x55555555;
 
-const volatile uintptr_t __dec_key_upper = 0x66666666;
-const volatile uintptr_t __dec_key_lower = 0x77777777;
+const volatile uintptr_t __dec_key_1 = 0x66666666;
+const volatile uintptr_t __dec_key_2 = 0x77777777;
+const volatile uintptr_t __dec_key_3 = 0x88888888;
+const volatile uintptr_t __dec_key_4 = 0x99999999;
 
 extern char __decrypt_buffer_start;
 extern char __decrypt_buffer_end;
@@ -57,7 +59,7 @@ extern char __decrypt_buffer_end;
 /*--------------------------------------------------------------*/
 
 __attribute__ ((section(".secure_code"))) void secure_print() {
-    printf("Secure printf\n");
+    printf("--w00t w00t from decrypted code--\n");
 }
 
 int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx)
@@ -289,13 +291,15 @@ cleanup:
     */
 
 
-    unsigned char key[16];
+    unsigned char key[32];
     char code_tag[16];
     char code_nonce[16];
     char *secure_code_enc = (char *)__secure_code_start;
     size_t secure_code_size = (size_t)__secure_code_size;
-    uintptr_t dec_key_lower = __dec_key_lower;
-    uintptr_t dec_key_upper = __dec_key_upper;
+    uintptr_t dec_key_1 = __dec_key_1;
+    uintptr_t dec_key_2 = __dec_key_2;
+    uintptr_t dec_key_3 = __dec_key_3;
+    uintptr_t dec_key_4 = __dec_key_4;
     uintptr_t secure_code_tag_lower = __secure_code_tag_lower;
     uintptr_t secure_code_tag_upper = __secure_code_tag_upper;
     uintptr_t secure_code_nonce_lower = __secure_code_nonce_lower;
@@ -304,8 +308,10 @@ cleanup:
     int ret;
 
 
-    memcpy(key, &dec_key_lower, sizeof(uintptr_t));
-    memcpy(key + sizeof(uintptr_t), &dec_key_upper, sizeof(uintptr_t));
+    memcpy(key, &dec_key_1, sizeof(uintptr_t));
+    memcpy(key + sizeof(uintptr_t), &dec_key_2, sizeof(uintptr_t));
+    memcpy(key + 2 * sizeof(uintptr_t), &dec_key_3, sizeof(uintptr_t));
+    memcpy(key + 3 * sizeof(uintptr_t), &dec_key_4, sizeof(uintptr_t));
 
     memcpy(code_tag, &secure_code_tag_lower, sizeof(uintptr_t));
     memcpy(code_tag + sizeof(uintptr_t), &secure_code_tag_upper, sizeof(uintptr_t));
@@ -313,16 +319,24 @@ cleanup:
     memcpy(code_nonce, &secure_code_nonce_lower, sizeof(uintptr_t));
     memcpy(code_nonce + sizeof(uintptr_t), &secure_code_nonce_upper, sizeof(uintptr_t));
 
-    printf("Decrypting .secure_code section\n");
-    printf(" __secure_code_start: %016lx\n", __secure_code_start);
-    printf(" __decrypt_buffer_start: %016lx\n", (uintptr_t)&__decrypt_buffer_start);
+    printf("[+] Decrypting .secure_code section\n");
+    printf(" __secure_code_start: 0x%016lx\n", __secure_code_start);
+    printf(" __decrypt_buffer_start: 0x%016lx\n", (uintptr_t)&__decrypt_buffer_start);
+    printf(" __secure_code_nonce_lower: 0x%016lx\n", __secure_code_nonce_lower);
+    printf(" __secure_code_nonce_upper: 0x%016lx\n", __secure_code_nonce_upper);
+    printf(" __secure_code_tag_lower: 0x%016lx\n", __secure_code_tag_lower);
+    printf(" __secure_code_tag_upper: 0x%016lx\n", __secure_code_tag_upper);
 
+    printf(" __dec_key_1: 0x%016lx\n", __dec_key_1);
+    printf(" __dec_key_2: 0x%016lx\n", __dec_key_2);
+    printf(" __dec_key_3: 0x%016lx\n", __dec_key_3);
+    printf(" __dec_key_4: 0x%016lx\n", __dec_key_4);
 
     Aes enc;
     wc_AesInit(&enc, NULL, INVALID_DEVID);
 
-    if ((ret = wc_AesGcmSetKey(&enc, (const byte *)key, 16)) != 0) {
-            printf("Error setting key!");
+    if ((ret = wc_AesGcmSetKey(&enc, (const byte *)key, 32)) != 0) {
+            printf("[-] Error setting key!");
             return -1;
     }
 
@@ -332,10 +346,10 @@ cleanup:
             printf("AES_GCM_AUTH_E == ret: %d\n", AES_GCM_AUTH_E == ret);
             return -1;
     } else {
-            printf(".secure_code decrypted successfully!\n");
+            printf("[++] .secure_code decrypted successfully!\n");
     }
 
-    printf("Running mprotect on .secure_code section\n");
+    printf("[+] Running mprotect on .secure_code section: PROT_READ | PROT_WRITE\n");
     ret = mprotect(secure_code_enc, secure_code_size, PROT_READ | PROT_WRITE);
     printf("mprotect return value: %d\n", ret);
 
@@ -344,15 +358,15 @@ cleanup:
         return -1;
     }
 
-    printf("Copying decrypted code to .secure_code section\n");
+    printf("[+] Copying decrypted code to .secure_code section\n");
     memcpy(secure_code_enc, &__decrypt_buffer_start, secure_code_size);
 
-    printf("Restoring mprotect perms\n");
+    printf("[+] Restoring mprotect perms: PROT_READ | PROT_EXEC\n");
     ret = mprotect(secure_code_enc, secure_code_size, PROT_READ | PROT_EXEC);
     printf("mprotect return value: %d\n", ret);
 
 
-    printf("Calling secure_print\n");
+    printf("[+] Calling secure_print\n");
     secure_print();
 }
 
