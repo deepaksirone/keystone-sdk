@@ -396,8 +396,8 @@ void process_dec_request(char *command_buf, WOLFSSL *sslServ)
     }
 
     //TODO: Verify report here
-    if ((memcmp(rule_bin_hash, rule.rule_bin_hash, 64) == 0) && 
-        (memcmp(runtime_bin_hash, rule.runtime_bin_hash, 64) == 0)) {
+    if ((memcmp(rule_bin_hash, rule.rule_bin_hash, RULE_BIN_HASH_LEN) == 0) && 
+        (memcmp(runtime_bin_hash, rule.runtime_bin_hash, RUNTIME_BIN_HASH_LEN) == 0)) {
         //TODO: Include the size of the transmission
         size_t sz = sizeof(struct keystore_rule);
         write_buffer(sslServ, &sz, sizeof(size_t));
