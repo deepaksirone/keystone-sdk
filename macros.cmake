@@ -197,3 +197,9 @@ macro(add_keystone_package target_name package_name package_script) # files are 
     )
 
 endmacro(add_keystone_package)
+
+macro(add_cryptor binary_target)
+	add_custom_target(${binary_target}-cryptor 
+		DEPENDS ${binary_target}
+		COMMAND python3 /data/projects/phd_stuff/tap/cryptor/cryptor.py ${binary_target})
+endmacro(add_cryptor)
