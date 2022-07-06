@@ -14,6 +14,7 @@ void ocall_send_reply(unsigned char* data, size_t len);
 int32_t ocall_init_connection(connection_data_t *data, size_t len);
 int32_t ocall_init_serv_connection(connection_data_t *data, size_t len);
 int32_t ocall_wait_for_conn(int32_t fd);
+int32_t ocall_terminate_conn(int32_t fd);
 size_t ocall_send_buffer_fd(network_send_data_t *data, size_t size);
 size_t ocall_recv_buffer_fd(network_recv_request_t *data, size_t size, struct edge_data *msg);
 int32_t ocall_get_user_record(char *username, struct edge_data *msg);

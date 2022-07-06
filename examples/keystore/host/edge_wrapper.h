@@ -53,4 +53,5 @@ void get_user_record_wrapper(void *buffer);
 void set_user_record_wrapper(void *buffer);
 void get_rule_record_wrapper(void *buffer);
 void set_rule_record_wrapper(void *buffer);
+void terminate_conn_wrapper(void *buffer);
 #endif /* _EDGE_WRAPPER_H_ */

@@ -31,12 +31,15 @@ extern "C" int32_t get_user_record(char *username, struct enc_keystore_user *enc
     assert(i == sizeof(struct enc_keystore_user));
     memcpy(enc_user, filebuffer, i);
 
+    fclose(fp);
+
     return 1;
 }
 
 // Warning: Overwrites previous record, use get_user_record to test for presence
 extern "C" int32_t set_user_record(char *username, struct enc_keystore_user *enc_user) {
     snprintf(_filepath, 4096, "%s/%s.dat", _pathname, username);
+    printf("[host] Opening pathname: %s", _filepath);
     FILE *fp = fopen(_filepath, "w+");
 
     if (fp == NULL) return 1;
@@ -45,6 +48,9 @@ extern "C" int32_t set_user_record(char *username, struct enc_keystore_user *enc
     while (i < sizeof(struct enc_keystore_user)) {
         i += fwrite(((char *)enc_user) + i, 1, sizeof(struct enc_keystore_user) - i, fp);
     }
+
+    fflush(fp);
+    fclose(fp);
 
     return 0;
 }
@@ -69,6 +75,8 @@ extern "C" int32_t get_rule_record(uintptr_t uid, uintptr_t rule_id, struct enc_
     assert(i == sizeof(struct enc_keystore_rule));
     memcpy(enc_rule, filebuffer, i);
 
+    fclose(fp);
+
     return 1;
 }
 
@@ -82,6 +90,9 @@ extern "C" int32_t set_rule_record(uintptr_t uid, uintptr_t rule_id, struct enc_
     while (i < sizeof(struct enc_keystore_rule)) {
         i += fwrite(((char *)enc_rule) + i, 1, sizeof(struct enc_keystore_rule) - i, fp);
     }
+
+    fflush(fp);
+    fclose(fp);
 
     return 0;
 }

@@ -4,7 +4,10 @@
 #define MDSIZE 64
 #define ATTEST_DATA_MAXLEN 1024
 #define PUBLIC_KEY_SIZE 32
-#define SIGNATURE_SIZE 64   
+#define SIGNATURE_SIZE 64  
+
+#include <stdint.h>
+typedef unsigned char byte;
 
 struct enclave_report_t {
   byte hash[MDSIZE];

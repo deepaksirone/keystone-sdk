@@ -252,7 +252,7 @@ int main(int argc, char** argv)
   	params.setFreeMemSize(20 * 1024 * 1024);
   	params.setUntrustedMem(DEFAULT_UNTRUSTED_PTR, 1024 * 1024);
 
-    init_keystore("/home/sifive");
+    init_keystore("/root");
 
   	if(enclave.init(argv[1], argv[2], params) != Keystone::Error::Success){
 		printf("HOST: Unable to start enclave\n");

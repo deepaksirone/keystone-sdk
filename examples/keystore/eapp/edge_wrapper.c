@@ -88,8 +88,10 @@ size_t ocall_recv_buffer_fd(network_recv_request_t *data, size_t size, struct ed
   return msg->size;
 }
 
-void ocall_terminate_conn(int32_t fd) {
-  ocall(OCALL_TERM_FD, &fd, sizeof(int32_t), 0, 0);
+int32_t ocall_terminate_conn(int32_t fd) {
+  int32_t retval;
+  ocall(OCALL_TERM_FD, &fd, sizeof(int32_t), &retval, sizeof(int32_t));
+  return retval;
 }
 
 int32_t ocall_get_user_record(char *username, struct edge_data *msg) {
