@@ -160,9 +160,9 @@ macro(add_wolfssl target_name tag libc plugins)
     GIT_TAG ${tag}
     CONFIGURE_COMMAND ./autogen.sh && ./configure --prefix=${wolfssl_install} --exec-prefix=${wolfssl_install} --enable-filesystem=no --enable-certgen --enable-certreq --enable-keygen --enable-sessioncerts --enable-certext --enable-asn=template --enable-static --disable-shared --enable-harden --enable-singlethreaded --host=riscv64-unknown-linux-${libc} CC=riscv64-unknown-linux-${libc}-gcc AR=riscv64-unknown-linux-${libc}-ar RANLIB=riscv64-unknown-linux-${libc}-ranlib
     UPDATE_COMMAND git pull origin keystone_random
-    BUILD_COMMAND make install EXTRA_CFLAGS=${plugins}
+    BUILD_COMMAND make EXTRA_CFLAGS=${plugins}
     BUILD_IN_SOURCE TRUE
-    INSTALL_COMMAND ""
+    INSTALL_COMMAND make install
   )
 
   add_custom_target(${target_name} DEPENDS wolfssl-${target_name})
