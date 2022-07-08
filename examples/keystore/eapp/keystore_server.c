@@ -17,6 +17,7 @@
 #include "keystore_rule.h"
 #include "keystore_report.h"
 #include "keystore_request.h"
+#include "keystore_defs.h"
 #include "app/syscall.h"
 
 #define MAXSZ 65535
@@ -28,8 +29,6 @@
 char command_buf[MAX_COMMAND_SIZE];
 byte user_record[USER_RECORD_SIZE];
 
-int strncmp(const char *s1, const char *s2, size_t n);
-int copy_from_shared(void* dst, uintptr_t offset, size_t data_len);
 int CbIOSend(WOLFSSL *ssl, char *buf, int sz, void *ctx);
 int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx);
 WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify);
@@ -51,9 +50,9 @@ static uintptr_t rand_gen_keystone(void)
 }
 
 char *generate_iv(char *password) {
-    char *res = (char *) malloc(16 * sizeof(char));
+    char *res = (char *) malloc(IV_SIZE* sizeof(char));
     int len_passwd = strlen(password);
-    for (int i = 0, j = 0; i < 16; i++) {
+    for (int i = 0, j = 0; i < IV_SIZE; i++) {
         res[i] = password[j % len_passwd];
         j++;
     }
@@ -62,8 +61,8 @@ char *generate_iv(char *password) {
 }
 
 char *gen_iv_sm() {
-    char *res = (char *) malloc(16 * sizeof(char));
-    for(int i = 0; i < (16 / sizeof(uintptr_t)); i++) {
+    char *res = (char *) malloc(IV_SIZE * sizeof(char));
+    for(int i = 0; i < (IV_SIZE / sizeof(uintptr_t)); i++) {
         uintptr_t rand = rand_gen_keystone();
         memcpy(res + i * sizeof(uintptr_t), &rand, sizeof(uintptr_t));
     }
@@ -97,13 +96,17 @@ int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx)
         printf("/*-------------------- CLIENT READING -----------------*/\n");
         for (i = 0; i < ret; i++) {
             printf("%02x ", (unsigned char)buf[i]);
-            if (i > 0 && (i % 16) == 0)
+            if (i > 0 && (i % 16) == 0) {
                 printf("\n");
+            }
         }
         printf("\n/*-------------------- CLIENT READING -----------------*/\n");
     }
     
-    if (ret == 0) return WOLFSSL_CBIO_ERR_CONN_CLOSE;
+    if (ret == 0) {
+        return WOLFSSL_CBIO_ERR_CONN_CLOSE;
+    }
+
     return ret;
 }
 
@@ -126,8 +129,9 @@ int CbIOSend(WOLFSSL *ssl, char *buf, int sz, void *ctx)
         printf("/*-------------------- CLIENT SENDING -----------------*/\n");
         for (i = 0; i < sz; i++) {
             printf("%02x ", (unsigned char) buf[i]);
-            if (i > 0 && (i % 16) == 0)
+            if (i > 0 && (i % 16) == 0) {
                 printf("\n");
+            }
         }
         printf("\n/*-------------------- CLIENT SENDING -----------------*/\n");
     } else {
@@ -243,11 +247,17 @@ int64_t write_buffer(WOLFSSL *sslserv, void *buffer, size_t sz)
 }
 
 void error_response(char *response, WOLFSSL *sslServ) {
+    uint64_t size;
+    size = strlen(response) + 1;
+    write_buffer(sslServ, &size, sizeof(uint64_t));
     write_buffer(sslServ, response, strlen(response) + 1);
-    wolfSSL_shutdown(sslServ);
+    //wolfSSL_shutdown(sslServ);
 }
 
 void success_response(char *response, WOLFSSL *sslServ) {
+    uint64_t size;
+    size = strlen(response) + 1;
+    write_buffer(sslServ, &size, sizeof(uint64_t));
     write_buffer(sslServ, response, strlen(response) + 1);
     //wolfSSL_shutdown(sslServ);
 }
@@ -496,7 +506,7 @@ void process_request(request_t* request, int cmd_size, WOLFSSL *sslServ) {
             
             register_user(username, password, &user_id, sslServ);
 
-            return error_response("Successful registration, UID: %lu\n", sslServ);
+            //return error_response("Successful registration, UID: %lu\n", sslServ);
             break;
         case REGRULE_REQUEST:
             regrule_request_t *regrule_req = (regrule_request_t *)&(request->data);
@@ -644,7 +654,7 @@ int main(int argc, char** argv)
     }
 
     //sslServ = Server(ctxServ, "let-wolfssl-choose", 0, cert_buf, cert_size, pvt_key, pvtkey_size);
-    start_request_server("localhost", 7777, cert_buf, cert_size, pvt_key, pvtkey_size);
+    start_request_server("localhost", KEYSTORE_PORT, cert_buf, cert_size, pvt_key, pvtkey_size);
 
     printf("Cleaning up...\n");
     return 0;

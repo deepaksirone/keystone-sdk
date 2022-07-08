@@ -13,4 +13,9 @@
 #define RUNTIME_BIN_HASH_SIZE 64
 #define EAPP_BIN_HASH_SIZE 64
 
+#define IV_SIZE 16
+
+#define KEYSTORE_PORT 7777
+
+
 #endif
