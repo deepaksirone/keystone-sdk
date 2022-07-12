@@ -7,6 +7,7 @@
 #include "keystore_datastore.h"
 #include "keystore_user.h"
 #include "keystore_rule.h"
+#include "keystore_defs.h"
 
 char _pathname[4096];
 char _filepath[4096];
@@ -19,9 +20,13 @@ extern "C" int32_t init_keystore(char *pathname) {
 
 // Returns 1 and copies the struct to the pointer if the user file exists
 extern "C" int32_t get_user_record(char *username, struct enc_keystore_user *enc_user) {
+    DEBUG_PRINT("[get_user_record] Entering\n");
     snprintf(_filepath, 4096, "%s/%s.dat", _pathname, username);
     FILE *fp = fopen(_filepath, "r");
-    if (fp == NULL) return 0;
+    if (fp == NULL) {
+        DEBUG_PRINT("[get_user_record] Record not found\n");
+        return 0;
+    }
 
     int i = 0;
     while (!feof(fp) && (i < sizeof(struct enc_keystore_user))) {
@@ -32,17 +37,20 @@ extern "C" int32_t get_user_record(char *username, struct enc_keystore_user *enc
     memcpy(enc_user, filebuffer, i);
 
     fclose(fp);
-
+    DEBUG_PRINT("[get_user_record] Record found\n");
     return 1;
 }
 
 // Warning: Overwrites previous record, use get_user_record to test for presence
 extern "C" int32_t set_user_record(char *username, struct enc_keystore_user *enc_user) {
+    DEBUG_PRINT("[set_user_record] Entering\n");
     snprintf(_filepath, 4096, "%s/%s.dat", _pathname, username);
-    printf("[host] Opening pathname: %s", _filepath);
     FILE *fp = fopen(_filepath, "w+");
 
-    if (fp == NULL) return 1;
+    if (fp == NULL) {
+        DEBUG_PRINT("[set_user_record] Unable to create file record\n");
+        return 1;
+    }
 
     int i = 0;
     while (i < sizeof(struct enc_keystore_user)) {
@@ -52,20 +60,26 @@ extern "C" int32_t set_user_record(char *username, struct enc_keystore_user *enc
     fflush(fp);
     fclose(fp);
 
+    DEBUG_PRINT("[set_user_record] Created user record\n");
     return 0;
 }
 
 
 extern "C" int32_t get_rule_record(uintptr_t uid, uintptr_t rule_id, struct enc_keystore_rule *enc_rule, int exist_query) {
-    snprintf(_filepath, 4096, "%s/%lu_%ls.dat", _pathname, uid, rule_id);
+    DEBUG_PRINT("[get_rule_record] Entering, exists_query: %d\n", exist_query);
+    snprintf(_filepath, 4096, "%s/%lu_%lu.dat", _pathname, uid, rule_id);
     
     if (exist_query) {
         struct stat s;
+        DEBUG_PRINT("[get_rule_record] Returning exists query\n");
         return (stat(_filepath, &s) == 0) ? 1 : 0;
     }
 
     FILE *fp = fopen(_filepath, "r");
-    if (fp == NULL) return 0;
+    if (fp == NULL) {
+        DEBUG_PRINT("[get_rule_record] Rule not found\n");
+        return 0;
+    }
 
     int i = 0;
     while (!feof(fp) && (i < sizeof(struct enc_keystore_rule))) {
@@ -77,14 +91,19 @@ extern "C" int32_t get_rule_record(uintptr_t uid, uintptr_t rule_id, struct enc_
 
     fclose(fp);
 
+    DEBUG_PRINT("[get_rule_record] Record found\n");
     return 1;
 }
 
 extern "C" int32_t set_rule_record(uintptr_t uid, uintptr_t rule_id, struct enc_keystore_rule *enc_rule) {
-    snprintf(_filepath, 4096, "%s/%lu_%ls.dat", _pathname, uid, rule_id);
+    DEBUG_PRINT("[set_rule_record] Entering\n");
+    snprintf(_filepath, 4096, "%s/%lu_%lu.dat", _pathname, uid, rule_id);
     FILE *fp = fopen(_filepath, "w+");
 
-    if (fp == NULL) return 1;
+    if (fp == NULL) {
+        DEBUG_PRINT("[set_rule_record] Unable to create record\n");
+        return 1;
+    }
 
     int i = 0;
     while (i < sizeof(struct enc_keystore_rule)) {
@@ -94,5 +113,6 @@ extern "C" int32_t set_rule_record(uintptr_t uid, uintptr_t rule_id, struct enc_
     fflush(fp);
     fclose(fp);
 
+    DEBUG_PRINT("[set_rule_record] Record created\n");
     return 0;
 }

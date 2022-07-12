@@ -17,5 +17,11 @@
 
 #define KEYSTORE_PORT 7777
 
+#if defined(DEBUG_KEYSTORE)
+#define DEBUG_PRINT(fmt, args...)    fprintf(stderr, fmt, ## args)
+#else
+#define DEBUG_PRINT(fmt, args...)    
+#endif
+
 
 #endif

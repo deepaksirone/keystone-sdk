@@ -14,6 +14,7 @@
 #include "edge_wrapper.h"
 #include "encl_message.h"
 #include "keystore_datastore.h"
+#include "keystore_defs.h"
 
 #define PRINT_MESSAGE_BUFFERS 1
 
@@ -25,13 +26,13 @@ int fd_clientsock;
 #define BUFFERLEN 4096
 byte local_buffer[BUFFERLEN];
 
-void send_buffer(byte* buffer, size_t len){
+void send_buffer(byte* buffer, size_t len) {
   write(fd_clientsock, &len, sizeof(size_t));
   write(fd_clientsock, buffer, len);
 }
 
 // This is wrong, what if the first read doesnt return size_t many bytes?
-byte* recv_buffer(size_t* len){
+byte* recv_buffer(size_t* len) {
   read(fd_clientsock, local_buffer, sizeof(size_t));
   size_t reply_size = *(size_t*)local_buffer;
   byte* reply = (byte*)malloc(reply_size);
@@ -208,6 +209,7 @@ int32_t initiate_connection_serv(char *hostname, int32_t port) {
 }
 
 int32_t accept_connection(int32_t servfd) {
+  DEBUG_PRINT("Accepting connection\n");
   int32_t ret = accept(servfd, NULL, NULL);
   return ret;
 }
@@ -221,10 +223,10 @@ size_t send_message_fd(int32_t fd, void *buffer, size_t size) {
 network_recv_data_t receive_message_fd(int32_t fd, size_t size) {
   network_recv_data_t ret;
   void *buffer = malloc(size);
-  printf("[host] Reading, sz: %lld\n", size);
+  DEBUG_PRINT("[host] Reading, sz: %lld\n", size);
   fflush(stdout);
   size_t sz_read = read(fd, buffer, size);
-  printf("[host] Read, sz: %lld\n", sz_read);
+  DEBUG_PRINT("[host] Read, sz: %lld\n", sz_read);
   fflush(stdout);
   
   ret.size = sz_read;
