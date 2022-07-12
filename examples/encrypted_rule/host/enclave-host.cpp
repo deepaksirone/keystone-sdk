@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <cstdio>
@@ -137,7 +138,9 @@ int32_t initiate_connection(char *hostname, int32_t port) {
 
 	int fd_sock;
 	struct sockaddr_in server_addr;
-	struct hostent *hostnm;
+	struct hostent *hostnm = NULL;
+
+  printf("[initiate_connection] Hostname:port %s:%d\n", hostname, port); 
 
 	fd_sock = socket(AF_INET, SOCK_STREAM, 0);
 	if (fd_sock < 0) {
@@ -146,16 +149,22 @@ int32_t initiate_connection(char *hostname, int32_t port) {
 	}
 
 	memset(&server_addr, 0, sizeof(server_addr));
-	hostnm = gethostbyname(hostname);
+  server_addr.sin_family      = AF_INET;
+  in_addr_t saddr;
+  if (strcmp(hostname, "keystore.tap") == 0) {
+    saddr = inet_addr("127.0.0.1");
+    port = 7777; 
+  } else {
+	  hostnm = gethostbyname(hostname);
+    if (hostnm == NULL) {
+		  printf("[init] Gethostname failed");
+		  exit(-1);
+	  }
+    saddr = *((unsigned long *)hostnm->h_addr);
+  }
 
-	if (hostnm == NULL) {
-		printf("[init] Gethostname failed");
-		exit(-1);
-	}
-
-	server_addr.sin_family      = AF_INET;
   server_addr.sin_port        = htons(port);
-  server_addr.sin_addr.s_addr = *((unsigned long *)hostnm->h_addr);
+  server_addr.sin_addr.s_addr = saddr;
 
 	if (connect(fd_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0 ) {
 		printf("[init] connect error");
