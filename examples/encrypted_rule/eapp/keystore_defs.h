@@ -23,6 +23,7 @@
 #define DEBUG_PRINT(fmt, args...)    
 #endif
 
-
+#define SECURE_CODE __attribute__ ((section(".secure_code"), noinline))
+#define SECURE_DATA __attribute__((section(".secure_data")))
 
 #endif

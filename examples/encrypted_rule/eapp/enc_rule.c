@@ -15,6 +15,7 @@
 #include "edge_wrapper.h"
 #include "rule_keystore.h"
 #include "keystore_report.h"
+#include "keystore_defs.h"
 #include "message.h"
 #include "app/syscall.h"
 
@@ -60,6 +61,8 @@ const volatile uintptr_t __user_id = 0x12345678;
 extern char __decrypt_buffer_start;
 extern char __decrypt_buffer_end;
 
+char secure_buf[] __attribute__((section(".secure_data"))) = "--w00t w00t from decrypted code--\n";
+
 struct keystore_rule rule;
 
 void get_keys() {
@@ -81,33 +84,42 @@ void get_keys() {
 /* Function implementations */
 /*--------------------------------------------------------------*/
 
-__attribute__ ((section(".secure_code"), noinline)) void secure_print() {
-    printf("--w00t w00t from decrypted code--\n");
+SECURE_CODE void secure_print() {
+    
+    printf(secure_buf);
 }
 
 
 int main(int argc, char** argv)
 {
 
-    printf("[+] Retreiving keys from keystore\n");
-    get_keys();
+    //printf("[+] Retreiving keys from keystore\n");
+    //get_keys();
     
     unsigned char key[32];
     char code_tag[16];
     char code_nonce[16];
     char *secure_code_enc = (char *)__secure_code_start;
+    char *secure_data_enc = (char *)__secure_data_start;
     size_t secure_code_size = (size_t)__secure_code_size;
+    size_t secure_data_size = (size_t)__secure_data_size;
+
     uintptr_t dec_key_1 = __dec_key_1;
     uintptr_t dec_key_2 = __dec_key_2;
     uintptr_t dec_key_3 = __dec_key_3;
     uintptr_t dec_key_4 = __dec_key_4;
+
     uintptr_t secure_code_tag_lower = __secure_code_tag_lower;
     uintptr_t secure_code_tag_upper = __secure_code_tag_upper;
     uintptr_t secure_code_nonce_lower = __secure_code_nonce_lower;
     uintptr_t secure_code_nonce_upper = __secure_code_nonce_upper;
 
-    int ret;
+    uintptr_t secure_data_tag_lower = __secure_data_tag_lower;
+    uintptr_t secure_data_tag_upper = __secure_data_tag_upper;
+    uintptr_t secure_data_nonce_lower = __secure_data_nonce_lower;
+    uintptr_t secure_data_nonce_upper = __secure_data_nonce_upper;
 
+    int ret;
 
     memcpy(key, &dec_key_1, sizeof(uintptr_t));
     memcpy(key + sizeof(uintptr_t), &dec_key_2, sizeof(uintptr_t));
@@ -167,6 +179,34 @@ int main(int argc, char** argv)
     ret = mprotect(secure_code_enc, secure_code_size, PROT_READ | PROT_EXEC);
     printf("mprotect return value: %d\n", ret);
 
+    printf("[+] Decrypting .secure_data section\n");
+    char data_tag[16];
+    char data_nonce[16];
+
+    memcpy(data_tag, &secure_data_tag_lower, sizeof(uintptr_t));
+    memcpy(data_tag + sizeof(uintptr_t), &secure_data_tag_upper, sizeof(uintptr_t));
+
+    memcpy(data_nonce, &secure_data_nonce_lower, sizeof(uintptr_t));
+    memcpy(data_nonce + sizeof(uintptr_t), &secure_data_nonce_upper, sizeof(uintptr_t));
+
+    if ((ret = wc_AesGcmDecrypt(&enc, (byte *)&__decrypt_buffer_start, (byte *)secure_data_enc, secure_data_size, (byte *)data_nonce, 16, 
+                (byte *)data_tag, 16, NULL, 0)) != 0) {
+            printf("Error decrypting .secure_data! ret: %d\n", ret);
+            printf("AES_GCM_AUTH_E == ret: %d\n", AES_GCM_AUTH_E == ret);
+            return -1;
+    }
+
+    printf("[++] .secure_data decrypted successfully!\n");
+
+    printf("[+] Running mprotect on .secure_data section: PROT_READ | PROT_WRITE\n");
+    ret = mprotect(secure_data_enc, secure_data_size, PROT_READ | PROT_WRITE);
+    printf("mprotect return value: %d\n", ret);
+
+    memcpy(secure_data_enc, &__decrypt_buffer_start, secure_data_size);
+
+    printf("[+] Restoring mprotect perms: PROT_READ | PROT_EXEC\n");
+    ret = mprotect(secure_data_enc, secure_data_size, PROT_READ | PROT_EXEC);
+    printf("mprotect return value: %d\n", ret);
 
     printf("[+] Calling secure_print\n");
     secure_print();

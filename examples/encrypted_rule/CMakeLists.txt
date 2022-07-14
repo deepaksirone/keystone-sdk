@@ -43,7 +43,7 @@ target_link_libraries(${host_bin} "-static" ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_
 
 set(eyrie_files_to_copy .options_log eyrie-rt)
 add_eyrie_runtime(${eapp_bin}-eyrie
-  "aafae0f6f288cd8e9258260f353b3982b739e993"
+  "f8acd1fef36c8010ab6339b655b89e524546bca7"
   ${eyrie_plugins}
   ${eyrie_files_to_copy})
 
