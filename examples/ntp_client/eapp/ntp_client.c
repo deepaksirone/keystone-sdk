@@ -104,13 +104,24 @@ int main()
 
   uint64_t time_taken = (get_ticks() - start_time);
 
-  packet.txTm_s = ntohl( packet.txTm_s ); // Time-stamp seconds.
-  packet.txTm_f = ntohl( packet.txTm_f ); // Time-stamp fraction of a second.
+  packet.txTm_s = ntohl(packet.txTm_s); // Time-stamp seconds.
+  packet.txTm_f = ntohl(packet.txTm_f); // Time-stamp fraction of a second.
 
 
-  time_t txTm = ( time_t ) ( packet.txTm_s - NTP_TIMESTAMP_DELTA );
+  time_t txTm = (time_t) ( packet.txTm_s - NTP_TIMESTAMP_DELTA );
 
   printf("TIME since UNIX EPOCH: %lu\nTime_taken_ticks: %lu\n", txTm, time_taken);
+
+  unsigned long time_rval = runtime_set_unix_time(txTm);
+  printf("set_time return val: %lu\n", time_rval);
+  uint64_t current_time = get_ticks();
+  while (((get_ticks() - current_time)/TIMEBASE_FREQ) < 6) {
+     //do nothing for 6 seconds
+  }
+
+  printf("get_unix_time: %lu\n", runtime_get_unix_time());
+
+  
 
   return 0;
 }

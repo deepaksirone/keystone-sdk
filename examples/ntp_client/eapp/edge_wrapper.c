@@ -79,3 +79,14 @@ size_t ocall_recv_buffer_fd(network_recv_request_t *data, size_t size, struct ed
 void ocall_terminate_conn(int32_t fd) {
   ocall(OCALL_TERM_FD, &fd, sizeof(int32_t), 0, 0);
 }
+
+size_t runtime_set_unix_time(unsigned long unix_time)
+{
+  return SYSCALL_1(RUNTIME_SYSCALL_REGISTER_TIME, unix_time);
+}
+
+size_t runtime_get_unix_time()
+{
+  return SYSCALL_0(RUNTIME_SYSCALL_GET_TIME);
+}
+ 
