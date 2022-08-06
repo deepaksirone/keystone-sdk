@@ -191,6 +191,11 @@ int main(int argc, char** argv)
 
     wolfSSL_Init();
 
+    if (wolfSSL_SetAllocators(malloc, free, realloc) != 0) {
+        printf("Failed to set allocators\n");
+        goto cleanup;
+    }
+
     /* Example usage */
 //    sslServ = Server(ctxServ, "ECDHE-RSA-AES128-SHA", 1);
     // Turning off verification for now
