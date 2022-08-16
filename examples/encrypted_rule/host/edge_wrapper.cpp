@@ -18,6 +18,7 @@ int edge_init(Keystone::Enclave* enclave) {
   register_call(OCALL_INIT_CONN, init_connection_wrapper);
   register_call(OCALL_SEND_FD, send_message_fd_wrapper);
   register_call(OCALL_RECV_FD, recv_message_fd_wrapper);
+  register_call(OCALL_GET_TRIGGER_DATA, get_trigger_data_wrapper);
 
   edge_call_init_internals((uintptr_t)enclave->getSharedBuffer(),
 			   enclave->getSharedBufferSize());
@@ -261,4 +262,33 @@ void wait_for_client_pubkey_wrapper(void* buffer){
   }
 
   return;
+}
+
+void get_trigger_data_wrapper(void *buffer)
+{
+  struct edge_call *edge_call = (struct edge_call*)buffer;
+
+  uintptr_t call_args;
+  unsigned long ret_val;
+  size_t args_len;
+
+  if (edge_call_args_ptr(edge_call, &call_args, &args_len) != 0) {
+    edge_call->return_data.call_status = CALL_STATUS_BAD_OFFSET;
+    return;
+  }
+
+  trigger_data_t* data = (trigger_data_t *)call_args;
+  size_t trigger_data_sz;
+
+  void *trigger_data = get_trigger_data(data, &trigger_data_sz);
+
+  if( edge_call_setup_wrapped_ret(edge_call, trigger_data, trigger_data_sz)) {
+    edge_call->return_data.call_status = CALL_STATUS_BAD_PTR;
+  }
+  else{
+    edge_call->return_data.call_status = CALL_STATUS_OK;
+  }
+
+  return;
+
 }

@@ -4,5 +4,6 @@
 #include <stdint.h>
 
 int send_key_retrieval_message(uintptr_t uid, uintptr_t rule_id, struct report_t *report, struct keystore_rule *rule);
+void *decrypt_trigger_data(void *encrypted_blob, int encrypted_blob_sz, unsigned char *key, int key_sz);
 
 #endif

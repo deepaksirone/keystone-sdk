@@ -39,4 +39,19 @@ typedef struct connection_data_t {
 	unsigned char hostname[];
 } connection_data_t;
 
+typedef struct trigger_data_t {
+	char trigger_name[1000];
+	int32_t trigger_name_size;
+	uintptr_t nonce;
+	char rule_params[];
+} trigger_data_t;
+
+typedef struct trigger_response_t {
+	char iv[16];
+	char tag[16];
+	int32_t ciphertext_size;
+	char ciphertext[];
+} trigger_response_t;
+
+
 #endif /* _ENCL_MESSAGE_H_ */

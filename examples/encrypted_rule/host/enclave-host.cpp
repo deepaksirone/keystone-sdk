@@ -14,6 +14,10 @@
 #include <keystone.h>
 #include "edge_wrapper.h"
 #include "encl_message.h"
+#include "HTTPRequest.hpp"
+#include "../include/rapidjson/document.h"
+#include "../include/rapidjson/writer.h"
+#include "../include/rapidjson/stringbuffer.h"
 
 #define PRINT_MESSAGE_BUFFERS 1
 
@@ -168,7 +172,7 @@ int32_t initiate_connection(char *hostname, int32_t port) {
 
 	if (connect(fd_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0 ) {
 		printf("[init] connect error");
-		exit(-1);
+		return -1;
 	}
 
 	return fd_sock;
@@ -196,6 +200,110 @@ network_recv_data_t receive_message_fd(int32_t fd, size_t size) {
   return ret;
 }
 
+char *construct_request_json(char *trigger_id, char *oauth_token, uintptr_t nonce, char *params) {
+    char *result = (char *)malloc(500 * sizeof(char));
+    snprintf(result, 500, "{\"trigger_id\":\"%s\",\"oauth_token\":\"%s\",\"nonce\": %lu, \"params\": \"%s\"}", trigger_id, oauth_token, nonce, params);
+    return result;
+}
+
+void *hex_string_to_bin(std::string &hexstr, int32_t *sz)
+{
+    if (hexstr.size() % 2 != 0) {
+      printf("[hex_string_to_bin] Error converting hex string to bin array\n");
+      return NULL;
+    }
+
+    int32_t final_len = hexstr.length() / 2;
+    char *array = (char *)malloc(final_len * sizeof(char));
+
+    for (unsigned int i = 0, j = 0; i < hexstr.length(); i += 2, j++) {
+      std::string byteString = hexstr.substr(i, 2);
+      array[j] = (char) strtol(byteString.c_str(), NULL, 16);
+    }
+
+    *sz = final_len;
+    return (void *)array;
+}
+
+char *lookup_oauth_token(char *trigger_id) {
+    //TODO: Test only
+    return "5f8eac3ef18e9c3c40a65f1958620ed2d192acd97d0d7f1ffc43b63a9f2bc14a0724c0884b03cd6ed52f68a71581b4dfcc7cafe15f4e334a9baedde47fff5378";
+}
+
+void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
+    //TODO: parse JSON and return JSON with nonce
+    char *trigger_id = data->trigger_name;
+    char *oauth_token = lookup_oauth_token(trigger_id);
+    uintptr_t nonce = data->nonce;
+  
+    http::Request request{"http://10.141.156.5:7777/event_data/"};
+
+    const std::string body = construct_request_json(trigger_id, oauth_token, nonce, (char *)data->rule_params);
+    const auto response = request.send("POST", body, {
+        {"Content-Type", "application/json"}
+    });
+
+    auto res = std::string{response.body.begin(), response.body.end()};
+    std::cout << "Response: " << res << std::endl;
+    rapidjson::Document doc;
+    if (doc.Parse(res.c_str()).HasParseError()) {
+      printf("[Trigger Data] Error Parsing JSON: %s\n", res.c_str());
+      *trigger_data_sz = 0;
+		  return NULL;
+    }
+
+    if (!doc.HasMember("event_ciphertext")) {
+      printf("[Trigger Data] Trigger data has no member event_ciphertext\n");
+      *trigger_data_sz = 0;
+      return NULL;
+    }
+
+    if (!doc.HasMember("tag")) {
+      printf("[Trigger Data] Trigger data has no member tag\n");
+      *trigger_data_sz = 0;
+      return NULL;
+    }
+
+     if (!doc.HasMember("enc_nonce")) {
+      printf("[Trigger Data] Trigger data has no member tag\n");
+      *trigger_data_sz = 0;
+      return NULL;
+    }
+
+    std::string ciphertext(doc["event_ciphertext"].GetString());
+    int32_t ciphertext_sz;
+    void *ciphertext_bin = hex_string_to_bin(ciphertext, &ciphertext_sz);
+
+    std::string tag(doc["tag"].GetString());
+    int32_t tag_sz;
+    void *tag_bin = hex_string_to_bin(tag, &tag_sz);
+
+    if (tag_sz > 16) {
+      printf("[Trigger Data] Tag size is too big: %d\n", tag_sz);
+      *trigger_data_sz = 0;
+      return NULL; 
+    }
+
+    std::string enc_nonce(doc["enc_nonce"].GetString());
+    int32_t enc_nonce_sz;
+    void *enc_nonce_bin = hex_string_to_bin(enc_nonce, &enc_nonce_sz);
+
+    if (enc_nonce_sz > 16) {
+      printf("[Trigger Data] enc_nonce size is too big: %d\n", enc_nonce_sz);
+      *trigger_data_sz = 0;
+      return NULL; 
+    }
+
+    trigger_response_t *resp = (trigger_response_t *)malloc(sizeof(trigger_response_t) + ciphertext_sz * sizeof(char));
+    memcpy(&resp->tag, tag_bin, tag_sz);
+    memcpy(&resp->iv, enc_nonce_bin, enc_nonce_sz);
+    memcpy(&resp->ciphertext, ciphertext_bin, ciphertext_sz);
+    resp->ciphertext_size = ciphertext_sz;
+
+    *trigger_data_sz =  sizeof(trigger_response_t) + ciphertext_sz * sizeof(char);
+    return (void *)resp;
+}
+
 void terminate_connection(int32_t fd) {
 	close(fd);
 }
@@ -212,7 +320,7 @@ int main(int argc, char** argv)
   	Keystone::Enclave enclave;
   	Keystone::Params params;
   
-  	params.setFreeMemSize(20 * 1024 * 1024);
+  	params.setFreeMemSize(4 * 4096);
   	params.setUntrustedMem(DEFAULT_UNTRUSTED_PTR, 1024 * 1024);
 
   	if(enclave.init(argv[1], argv[2], params) != Keystone::Error::Success){

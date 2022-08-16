@@ -353,3 +353,39 @@ int send_key_retrieval_message(uintptr_t uid, uintptr_t rule_id, struct report_t
 
     return 0;
 }
+
+
+void *decrypt_trigger_data(void *encrypted_blob, int encrypted_blob_sz, unsigned char *key, int key_sz)
+{
+    trigger_response_t *resp = (trigger_response_t *)encrypted_blob;
+	// IV is at the beginning of the blob
+	char *iv = (char *)&resp->iv;
+	int iv_sz = 16;
+
+	// Followed by the tag
+	char *code_tag = (char *)&resp->tag;
+	int tag_sz = 16;
+
+	char *enc_dat_start = (char *)&resp->ciphertext;
+
+	Aes enc;
+    wc_AesInit(&enc, NULL, INVALID_DEVID);
+
+	void *decrypted_data = (void *)malloc(encrypted_blob_sz);
+
+	int ret;
+	if ((ret = wc_AesGcmSetKey(&enc, (const byte *)key, key_sz)) != 0) {
+            printf("[-][decrypt_trigger_data] Error setting key!");
+            return NULL;
+    }
+
+	if ((ret = wc_AesGcmDecrypt(&enc, (byte *)decrypted_data, (byte *)enc_dat_start, resp->ciphertext_size, (byte *)iv, iv_sz,
+                (byte *)code_tag, tag_sz, NULL, 0)) != 0) {
+            printf("[decrypt_trigger_data] Error decrypting! ret: %d\n", ret);
+            printf("[decrypt_trigger_data] AES_GCM_AUTH_E == ret: %d\n", AES_GCM_AUTH_E == ret);
+	    	free(decrypted_data);
+            return NULL;
+    }
+
+	return decrypted_data;
+}

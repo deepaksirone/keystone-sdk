@@ -1,5 +1,5 @@
 set(eapp_bin enc_rule)
-set(eapp_src eapp/enc_rule.c eapp/edge_wrapper.c eapp/message.c)
+set(eapp_src eapp/enc_rule.c eapp/edge_wrapper.c eapp/message.c eapp/event_loop.c eapp/message.c)
 set(host_bin enc_rule-runner)
 set(host_src host/enclave-host.cpp host/edge_wrapper.cpp)
 set(package_name "enc_rule.ke")
@@ -21,15 +21,23 @@ include_directories(include)
 #include_directories(${KEYSTONE_SDK_DIR}/include/app)
 
 # eapp
+set(RULE_LIB_DIR $ENV{RULE_LIB_DIR})
+set(RULE_LIB ${RULE_LIB_DIR}/rule_lib.a)
+
+set(RULE_SHIM_DIR $ENV{RULE_SHIM_DIR})
+set(RULE_SHIM ${RULE_SHIM_DIR}/libhlvm-runtime.a)
+
 add_executable(${eapp_bin} ${eapp_src})
 add_dependencies(${eapp_bin} ${eapp_bin}-wolfssl)
 set_target_properties(${eapp_bin}
   PROPERTIES LINK_FLAGS "-static -T ${CMAKE_CURRENT_SOURCE_DIR}/app.lds")
 target_link_libraries(${eapp_bin} "-static" 
 			      ${KEYSTONE_LIB_EDGE}
-                              ${KEYSTONE_LIB_EAPP}
+            ${KEYSTONE_LIB_EAPP}
+            ${RULE_LIB}
+            ${RULE_SHIM}
 			      ${WOLFSSL_LIB}
-			      "-lm")
+			      "-lm" "-lstdc++")
 add_cryptor(${eapp_bin})
 add_dependencies(${eapp_bin}-cryptor ${eapp_bin})
 

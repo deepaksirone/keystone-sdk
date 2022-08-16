@@ -18,6 +18,7 @@
 #include "keystore_defs.h"
 #include "message.h"
 #include "app/syscall.h"
+#include "event_loop.h"
 
 #define MAXSZ 65535
 int copy_from_shared(void* dst, uintptr_t offset, size_t data_len);
@@ -56,7 +57,7 @@ const volatile uintptr_t __dec_key_3 = 0x88888888;
 const volatile uintptr_t __dec_key_4 = 0x99999999;
 
 const volatile uintptr_t __rule_id = 0x00000000;
-const volatile uintptr_t __user_id = 0x12345678;
+const volatile uintptr_t __user_id = 0x00000000;
 
 extern char __decrypt_buffer_start;
 extern char __decrypt_buffer_end;
@@ -64,6 +65,43 @@ extern char __decrypt_buffer_end;
 char secure_buf[] __attribute__((section(".secure_data"))) = "--w00t w00t from decrypted code--\n";
 
 struct keystore_rule rule;
+
+void print_array(unsigned char *array, int array_sz, char *array_name)
+{
+    printf("unsigned char %s[] = {\n", array_name);
+    for(int i = 0; i < array_sz - 1; i++) {
+        printf("0x%02x, ", array[i]);
+    }
+
+    printf("0x%02x };\n", array[array_sz - 1]);
+}
+
+void print_report(struct report_t *report)
+{
+    printf("\n----SM Report----\n");
+    print_array((unsigned char *)&report->sm.hash, MDSIZE, "sm_hash");
+    print_array((unsigned char *)&report->sm.public_key, PUBLIC_KEY_SIZE, "sm_public_key");
+    print_array((unsigned char *)&report->sm.signature, SIGNATURE_SIZE, "sm_signature");
+
+    printf("\n----Enclave Report----\n");
+    print_array((unsigned char *)&report->enclave.hash, MDSIZE, "enclave_hash");
+    printf("uint64_t data_len = %lu;\n", report->enclave.data_len);
+    print_array((unsigned char *)&report->enclave.data, ATTEST_DATA_MAXLEN, "enclave_data");
+    print_array((unsigned char *)&report->enclave.signature, SIGNATURE_SIZE, "enclave_signature");
+    
+    printf("\n----Device Public Key----\n");
+    print_array((unsigned char *)&report->dev_public_key, PUBLIC_KEY_SIZE, "dev_public_key");
+}
+
+void populate_default(struct keystore_rule *rule)
+{
+    memcpy(&rule->key_action[0], "\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa", 32);
+    memcpy(&rule->key_trigger[0], "\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa\xaa", 32);
+    rule->num_actions = 1;
+    rule->num_triggers = 1;
+    rule->rid = 0;
+
+}
 
 void get_keys() {
     struct report_t report;
@@ -73,8 +111,11 @@ void get_keys() {
     attest_enclave((void *)buffer, uid_rid, 100);
     memcpy(&report, buffer, sizeof(report_t));
 
+    print_report(&report);
+
     if (send_key_retrieval_message(__user_id, __rule_id, &report, &rule) != 0) {
-        printf("[-] Failed to retrieve keys\n");
+        printf("[-] Failed to retrieve keys, setting default keys for trigger0\n");
+        populate_default(&rule);
     } else {
         printf("[+] get_keys returned 0\n");
     }
@@ -93,8 +134,8 @@ SECURE_CODE void secure_print() {
 int main(int argc, char** argv)
 {
 
-    //printf("[+] Retreiving keys from keystore\n");
-    //get_keys();
+    printf("[+] Retreiving keys from keystore\n");
+    get_keys();
     
     unsigned char key[32];
     char code_tag[16];
@@ -211,6 +252,7 @@ int main(int argc, char** argv)
     printf("[+] Calling secure_print\n");
     secure_print();
 
+    event_loop(&rule, 1);
     //printf("Hello world\n");
     return 0;
 }
