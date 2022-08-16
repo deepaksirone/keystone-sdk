@@ -252,7 +252,7 @@ int main(int argc, char** argv)
   	Keystone::Enclave enclave;
   	Keystone::Params params;
   
-  	params.setFreeMemSize(20 * 1024 * 1024);
+  	params.setFreeMemSize(1024 * 1024);
   	params.setUntrustedMem(DEFAULT_UNTRUSTED_PTR, 1024 * 1024);
 
   	if(enclave.init(argv[1], argv[2], params) != Keystone::Error::Success){

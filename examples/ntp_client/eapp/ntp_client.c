@@ -17,7 +17,15 @@
 #include "app/syscall.h"
 
 #define NTP_TIMESTAMP_DELTA 2208988800ull
+
+#define STARFIVE_VISIONFIVE
+
+
+#if !defined(STARFIVE_VISIONFIVE)
 #define TIMEBASE_FREQ 10000000
+#else
+#define TIMEBASE_FREQ 6250000
+#endif
 
 static uint64_t get_ticks()
 {
@@ -60,6 +68,7 @@ int main()
   char *ntp_server = "time.cloudflare.com";
   int ntp_port = 123;
   int host_len = strlen(ntp_server);
+  char printf_buffer[100];
 
   ntp_packet packet = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -85,7 +94,8 @@ int main()
   int ret = (int) ocall_send_buffer_fd(data_recv, sizeof(network_send_data_t) + sizeof(ntp_packet));
 
   if (ret <= 0) {
-    printf("NTP packet send failed!\n");
+    snprintf(printf_buffer, 100, "NTP packet send failed!\n");
+    ocall_print_buffer(printf_buffer);
     return -1;
   }
 
@@ -98,7 +108,9 @@ int main()
 	if (ret > 0 && msg.size == sizeof(ntp_packet)) {
 		copy_from_shared(&packet, msg.offset, msg.size);
   } else {
-    printf("Receive of NTP packet failed!\n");
+    //printf("Receive of NTP packet failed!\n");
+    snprintf(printf_buffer, 100, "Receive of NTP packet failed!\n");
+    ocall_print_buffer(printf_buffer);
     return -1;
   }
 
@@ -110,18 +122,31 @@ int main()
 
   time_t txTm = (time_t) ( packet.txTm_s - NTP_TIMESTAMP_DELTA );
 
-  printf("TIME since UNIX EPOCH: %lu\nTime_taken_ticks: %lu\n", txTm, time_taken);
+  //printf("TIME since UNIX EPOCH: %lu\nTime_taken_ticks: %lu\n", txTm, time_taken);
+  snprintf(printf_buffer, 100, "TIME since UNIX EPOCH: %lu\nTime_taken_ticks: %lu\n", txTm, time_taken);
+  ocall_print_buffer(printf_buffer);
 
   unsigned long time_rval = runtime_set_unix_time(txTm);
-  printf("set_time return val: %lu\n", time_rval);
+  //printf("set_time return val: %lu\n", time_rval);
+  snprintf(printf_buffer, 100, "set_time return val: %lu\n", time_rval);
+  ocall_print_buffer(printf_buffer);
+
   uint64_t current_time = get_ticks();
   while (((get_ticks() - current_time)/TIMEBASE_FREQ) < 6) {
      //do nothing for 6 seconds
   }
 
-  printf("get_unix_time: %lu\n", runtime_get_unix_time());
+  //printf("get_unix_time: %lu\n", runtime_get_unix_time());
+  time_t retrieved_time = runtime_get_unix_time();
+  snprintf(printf_buffer, 100, "get_unix_time: %lu\n", retrieved_time);
+  ocall_print_buffer(printf_buffer);
 
-  
+  //setenv("TZ", "UTC+0UTC+0,M3.2.0/2,M11.1.0/2", 1);
+  struct tm *time = gmtime(( const time_t* ) &retrieved_time);
+
+  //printf("Time: year: %d, month: %d, day: %d, hour: %d\n", time->tm_year, time->tm_mon, time->tm_mday, time->tm_hour);
+  snprintf(printf_buffer, 100, "Time: year: %d, month: %d, day: %d, hour: %d\n", time->tm_year, time->tm_mon, time->tm_mday, time->tm_hour);
+  ocall_print_buffer(printf_buffer);
 
   return 0;
 }
