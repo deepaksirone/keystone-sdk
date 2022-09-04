@@ -82,6 +82,8 @@ void event_loop(struct keystore_rule *rule, int loop_times)
     
 
     while (i < loop_times) {
+
+        clear_data();
         
         if (!fetch_and_validate_data(trigger_data, rule)) {
             i++;
