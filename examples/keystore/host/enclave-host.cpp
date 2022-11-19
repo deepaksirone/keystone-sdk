@@ -251,10 +251,10 @@ int main(int argc, char** argv)
   	Keystone::Enclave enclave;
   	Keystone::Params params;
   
-  	params.setFreeMemSize(20 * 1024 * 1024);
+  	params.setFreeMemSize(4096 * 10);
   	params.setUntrustedMem(DEFAULT_UNTRUSTED_PTR, 1024 * 1024);
 
-    init_keystore("/root");
+    init_keystore("/home/riscv/keystore");
 
   	if(enclave.init(argv[1], argv[2], params) != Keystone::Error::Success){
 		printf("HOST: Unable to start enclave\n");

@@ -6,6 +6,7 @@
 #define RULE_KEY_LEN 32
 #define RULE_BIN_HASH_LEN 64
 #define RUNTIME_BIN_HASH_LEN 64
+#define SM_BIN_HASH_LEN 64
 #define MAX_TRIGGER_SERVICES 20
 #define MAX_ACTION_SERVICES 20
 
@@ -21,7 +22,8 @@ struct keystore_rule {
 
     // Hash sizes according to the Keystone SDK
     char rule_bin_hash[RULE_BIN_HASH_LEN];
-    char runtime_bin_hash[RUNTIME_BIN_HASH_LEN];
+    char sm_bin_hash[SM_BIN_HASH_LEN];
+    //char runtime_bin_hash[RUNTIME_BIN_HASH_LEN];
 };
 
 struct enc_keystore_rule {

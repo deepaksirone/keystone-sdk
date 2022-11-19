@@ -17,9 +17,9 @@ typedef struct reguser_request {
 } reguser_request_t;
 
 typedef struct regrule_request {
-    uintptr_t rid;
-    int num_triggers;
-    int num_actions;
+    uint64_t rid;
+    int32_t num_triggers;
+    int32_t num_actions;
 
     char username[USERNAME_SIZE];
     char password[PASSWORD_SIZE];
@@ -31,7 +31,7 @@ typedef struct regrule_request {
 
     // Hash sizes according to the Keystone SDK
     char rule_bin_hash[EAPP_BIN_HASH_SIZE];
-    char runtime_bin_hash[RUNTIME_BIN_HASH_SIZE];
+    char sm_bin_hash[SM_BIN_HASH_SIZE];
 } regrule_request_t;
 
 

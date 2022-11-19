@@ -12,6 +12,7 @@
 
 #define RUNTIME_BIN_HASH_SIZE 64
 #define EAPP_BIN_HASH_SIZE 64
+#define SM_BIN_HASH_SIZE 64
 
 #define IV_SIZE 16
 

@@ -67,6 +67,7 @@ extern "C" int32_t set_user_record(char *username, struct enc_keystore_user *enc
 
 extern "C" int32_t get_rule_record(uintptr_t uid, uintptr_t rule_id, struct enc_keystore_rule *enc_rule, int exist_query) {
     DEBUG_PRINT("[get_rule_record] Entering, exists_query: %d\n", exist_query);
+    DEBUG_PRINT("[get_rule_record] uid: %ld, rule_id: %ld\n", uid, rule_id);
     snprintf(_filepath, 4096, "%s/%lu_%lu.dat", _pathname, uid, rule_id);
     
     if (exist_query) {
