@@ -9,6 +9,7 @@
 #include <wolfssl/certs_test.h>
 #include <wolfssl/ssl.h>
 #include <wolfssl/wolfcrypt/types.h>
+#include "app/syscall.h"
 #include "encl_message.h"
 #include "edge_wrapper.h"
 #include "rule_keystore.h"
@@ -32,6 +33,16 @@ struct WOLFSSL_SOCKADDR {
 
 static int fpSendRecv;
 static int verboseFlag = 0;
+
+char *gen_iv_sm(int iv_size) {
+    char *res = (char *) malloc(iv_size * sizeof(char));
+    for(int i = 0; i < (iv_size / sizeof(uintptr_t)); i++) {
+        uintptr_t rand = SYSCALL_0(SYSCALL_GENRAND_WORD);
+        memcpy(res + i * sizeof(uintptr_t), &rand, sizeof(uintptr_t));
+    }
+
+    return res;
+}
 
 
 int myCustomExtCallback(const word16* oid, word32 oidSz, int crit,
@@ -320,6 +331,8 @@ int send_key_retrieval_message(uintptr_t uid, uintptr_t rule_id, struct report_t
     memcpy(data->hostname, hostname, host_len);
     fpSendRecv = ocall_init_connection(data, sizeof(connection_data_t) + (host_len + 1) * sizeof(unsigned char));
 
+    free(data);
+    
     wolfSSL_Init();
 
     sslCli  = Client(ctxCli, "let-wolfssl-decide", 0, 0);
@@ -344,6 +357,21 @@ int send_key_retrieval_message(uintptr_t uid, uintptr_t rule_id, struct report_t
     send_message(sslCli, &request, sizeof(request_t));
 
     int recv_size = recv_message(sslCli, reply, MAXSZ - 1);
+
+    //int ret = wolfSSL_shutdown(sslCli);
+    int ret = wolfSSL_shutdown(sslCli);
+    while (ret != SSL_SUCCESS) {
+        if (ret != SSL_SHUTDOWN_NOT_DONE) {
+            printf("Error shutting down SSL connection\n");
+            break;
+        }
+        ret = wolfSSL_shutdown(sslCli);
+    }
+
+    if (ocall_terminate_conn(fpSendRecv) != 0) {
+        printf("Error closing connection to Keystore\n");
+    }
+
     if (recv_size == sizeof(struct keystore_rule)) {
         memcpy(rule, reply, sizeof(struct keystore_rule));
         return 0;
@@ -351,7 +379,7 @@ int send_key_retrieval_message(uintptr_t uid, uintptr_t rule_id, struct report_t
 
     printf("Error from Keystore: %s\n", reply);
 
-    return 0;
+    return -1;
 }
 
 
@@ -371,7 +399,8 @@ void *decrypt_trigger_data(void *encrypted_blob, int encrypted_blob_sz, unsigned
 	Aes enc;
     wc_AesInit(&enc, NULL, INVALID_DEVID);
 
-	void *decrypted_data = (void *)malloc(encrypted_blob_sz);
+	void *decrypted_data = (void *)malloc(encrypted_blob_sz + 1);
+    memset(decrypted_data, 0, encrypted_blob_sz + 1);
 
 	int ret;
 	if ((ret = wc_AesGcmSetKey(&enc, (const byte *)key, key_sz)) != 0) {
@@ -388,4 +417,39 @@ void *decrypt_trigger_data(void *encrypted_blob, int encrypted_blob_sz, unsigned
     }
 
 	return decrypted_data;
+}
+
+action_data_t *encrypt_action_data(void *action_data, int action_data_sz, unsigned char *key, int key_sz, int32_t *struct_sz) {
+    action_data_t *action_dt = (action_data_t *)malloc(sizeof(action_data_t) + action_data_sz * sizeof(unsigned char));
+    memset(action_dt, 0, sizeof(action_data_t) + action_data_sz * sizeof(unsigned char));
+    
+    char *iv = gen_iv_sm(16);
+    int iv_sz = 16;
+
+    memcpy((void *)&action_dt->iv, (void *)iv, 16);
+    free(iv);
+    action_dt->ciphertext_size = action_data_sz;
+
+    Aes enc;
+    wc_AesInit(&enc, NULL, INVALID_DEVID);
+
+    int ret;
+    if ((ret = wc_AesGcmSetKey(&enc, (const byte *)key, key_sz)) != 0) {
+            printf("[-][encrypt_action_data] Error setting key!\n");
+            return NULL;
+    }
+
+    // No Additional data here
+    if ((ret = wc_AesGcmEncrypt(&enc, (byte *)&action_dt->ciphertext, (byte *)action_data, action_data_sz, (byte *)&action_dt->iv, iv_sz, (byte *)&action_dt->tag,
+                sizeof(action_dt->tag), NULL, 0)) != 0) {
+        printf("[encrypt_action_data] Error encrypting! ret: %d\n", ret);
+        //printf("[encrypt_action_data] AES_GCM_AUTH_E == ret: %d\n", AES_GCM_AUTH_E == ret);
+	    free(action_dt);
+        return NULL;
+    }
+
+    
+
+    *struct_sz = sizeof(action_data_t) + action_data_sz * sizeof(unsigned char);
+    return action_dt;
 }

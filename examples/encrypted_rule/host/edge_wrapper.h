@@ -45,4 +45,9 @@ network_recv_data_t receive_message_fd(int32_t fd, size_t size);
 void get_trigger_data_wrapper(void *buffer);
 void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz);
 
+void send_action_data_wrapper(void *buffer);
+int32_t send_action_data(action_data_t *data);
+
+void terminate_conn_wrapper(void *buffer);
+
 #endif /* _EDGE_WRAPPER_H_ */

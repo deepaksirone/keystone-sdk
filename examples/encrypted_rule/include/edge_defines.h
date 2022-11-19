@@ -12,5 +12,5 @@
 #define OCALL_RECV_FD 9
 #define OCALL_TERM_FD 10
 #define OCALL_GET_TRIGGER_DATA 11
-
+#define OCALL_SEND_ACTION_DATA 12
 #endif /* _EDGE_DEFINES_H_ */

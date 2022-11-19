@@ -30,7 +30,7 @@ SECTIONS
   . = ALIGN(0x1000);
   .malloc_region : {
     __malloc_start = .;
-    . = . + 4096*300;
+    . = . + 4096*500;
     __malloc_zone_stop = .;
     . = ALIGN(0x1000);
     PROVIDE(__decrypt_buffer_start = .);

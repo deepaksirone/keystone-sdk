@@ -127,7 +127,7 @@ void get_keys() {
 
 SECURE_CODE void secure_print() {
     
-    printf(secure_buf);
+    ocall_print_buffer(secure_buf);
 }
 
 
@@ -252,7 +252,7 @@ int main(int argc, char** argv)
     printf("[+] Calling secure_print\n");
     secure_print();
 
-    event_loop(&rule, 1);
+    event_loop(&rule, 1000000000);
     //printf("Hello world\n");
     return 0;
 }

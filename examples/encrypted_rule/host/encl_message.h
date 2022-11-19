@@ -2,6 +2,9 @@
 #define _ENCL_MESSAGE_H_
 #include "edge_common.h"
 #include "report.h"
+
+#define MAX_ACTION_PARAM_SIZE 1000
+
 typedef unsigned char byte;
 
 typedef struct network_message_t {
@@ -52,6 +55,15 @@ typedef struct trigger_response_t {
 	int32_t ciphertext_size;
 	char ciphertext[];
 } trigger_response_t;
+
+typedef struct action_data_t {
+	char iv[16];
+	char tag[16];
+	char action_params[MAX_ACTION_PARAM_SIZE];
+	int32_t action_param_sz;
+	int32_t ciphertext_size;
+	char ciphertext[];
+} action_data_t;
 
 
 #endif /* _ENCL_MESSAGE_H_ */

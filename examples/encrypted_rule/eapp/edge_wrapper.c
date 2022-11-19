@@ -69,12 +69,21 @@ size_t ocall_recv_buffer_fd(network_recv_request_t *data, size_t size, struct ed
   return msg->size;
 }
 
-void ocall_terminate_conn(int32_t fd) {
-  ocall(OCALL_TERM_FD, &fd, sizeof(int32_t), 0, 0);
+int32_t ocall_terminate_conn(int32_t fd) {
+  int32_t retval;
+  ocall(OCALL_TERM_FD, &fd, sizeof(int32_t), &retval, sizeof(int32_t));
+  return retval;
 }
 
 size_t ocall_get_trigger_data(trigger_data_t *data, size_t size, struct edge_data *msg) {
   ocall(OCALL_GET_TRIGGER_DATA, data, size, msg, sizeof(struct edge_data));
 
   return msg->size;
+}
+
+int32_t ocall_send_action_data(action_data_t *action_data, size_t action_data_sz) {
+  int32_t retval;
+  ocall(OCALL_SEND_ACTION_DATA, action_data, action_data_sz, &retval, sizeof(int32_t));
+
+  return retval;
 }
