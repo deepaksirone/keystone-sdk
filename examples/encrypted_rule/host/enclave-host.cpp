@@ -452,7 +452,7 @@ int main(int argc, char** argv)
     register_action_token(action_id, action_token);
 
     // Spawning listener thread
-    std::thread listener_thread(listener_function, 5555);
+    std::thread listener_thread(listener_function, 80);
 
 
   	Keystone::Enclave enclave;
@@ -461,8 +461,8 @@ int main(int argc, char** argv)
   	params.setFreeMemSize(4 * 4096);
   	params.setUntrustedMem(DEFAULT_UNTRUSTED_PTR, 1024 * 1024);
 
-  	if(enclave.init(argv[1], argv[2], params) != Keystone::Error::Success){
-		printf("HOST: Unable to start enclave\n");
+  	if(enclave.init(argv[1], argv[2], params) != Keystone::Error::Success) {
+		    printf("HOST: Unable to start enclave\n");
     		exit(-1);
   	}
 
