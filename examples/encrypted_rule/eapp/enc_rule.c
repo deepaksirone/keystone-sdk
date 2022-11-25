@@ -33,6 +33,13 @@ struct WOLFSSL_SOCKADDR {
     void*        sa;
 };
 
+static uint64_t get_ticks()
+{
+  uint64_t n;
+  __asm__ __volatile__("rdtime %0" : "=r"(n));
+  return n;
+}
+
 //static int fpSendRecv;
 //static int verboseFlag = 0;
 
@@ -134,8 +141,12 @@ SECURE_CODE void secure_print() {
 int main(int argc, char** argv)
 {
 
+    char print_buf[100];
     printf("[+] Retreiving keys from keystore\n");
+    uint64_t start_enclave = get_ticks();
     get_keys();
+    uint64_t get_keys_end = get_ticks();
+    
     
     unsigned char key[32];
     char code_tag[16];
@@ -248,6 +259,14 @@ int main(int argc, char** argv)
     printf("[+] Restoring mprotect perms: PROT_READ | PROT_EXEC\n");
     ret = mprotect(secure_data_enc, secure_data_size, PROT_READ | PROT_EXEC);
     printf("mprotect return value: %d\n", ret);
+
+    uint64_t init_end = get_ticks();
+    
+    snprintf(print_buf, 100, "[time] Keystore get_keys: %lu ticks\n", get_keys_end - start_enclave);
+    ocall_print_buffer(print_buf);
+
+    snprintf(print_buf, 100, "[time] Decrypt + init: %lu ticks\n", init_end - get_keys_end);
+    ocall_print_buffer(print_buf);
 
     printf("[+] Calling secure_print\n");
     secure_print();

@@ -15,6 +15,7 @@
 #include <chrono>
 
 #include <keystone.h>
+#include <keystone_user.h>
 #include "edge_wrapper.h"
 #include "encl_message.h"
 #include "HTTPRequest.hpp"
@@ -36,6 +37,8 @@ semaphore actions_sent;
 int fd_clientsock;
 #define BUFFERLEN 4096
 byte local_buffer[BUFFERLEN];
+
+static int driver_fd = -1;
 
 void send_buffer(byte* buffer, size_t len){
   write(fd_clientsock, &len, sizeof(size_t));
@@ -238,6 +241,19 @@ char *lookup_oauth_token(char *trigger_id) {
     return "5f8eac3ef18e9c3c40a65f1958620ed2d192acd97d0d7f1ffc43b63a9f2bc14a0724c0884b03cd6ed52f68a71581b4dfcc7cafe15f4e334a9baedde47fff5378";
 }
 
+
+uintptr_t get_nonce_SM() {
+
+  struct keystone_ioctl_get_verifiable_nonce st;
+
+  if (ioctl(driver_fd, KEYSTONE_IOC_GET_VERIFIABLE_NONCE, &st)) {
+    printf("[get_nonce_SM] Error getting nonce from SM\n");
+  }
+
+  return st.value;
+
+}
+
 void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
     //TODO: parse JSON and return JSON with nonce
     
@@ -245,6 +261,8 @@ void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
     char *trigger_id = data->trigger_name;
     char *oauth_token = lookup_oauth_token(trigger_id);
     uintptr_t nonce = data->nonce;
+    
+    //TODO: Request SM for the nonce here
   
     http::Request request{"http://node1.spigot.cs799-serverless-pg0.wisc.cloudlab.us:80/event_data/"};
 
@@ -441,6 +459,10 @@ void listener_function(int port) {
 int main(int argc, char** argv)
 {
 
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
   	/* Wait for network connection */
   	// init_network_wait();
 
@@ -461,10 +483,22 @@ int main(int argc, char** argv)
   	params.setFreeMemSize(4 * 4096);
   	params.setUntrustedMem(DEFAULT_UNTRUSTED_PTR, 1024 * 1024);
 
+    auto t1 = high_resolution_clock::now();
   	if(enclave.init(argv[1], argv[2], params) != Keystone::Error::Success) {
 		    printf("HOST: Unable to start enclave\n");
     		exit(-1);
   	}
+
+    auto t2 = high_resolution_clock::now();
+
+    //auto ms_int = duration_cast<milliseconds>(t2 - t1);
+    duration<double, std::milli> ms_double = t2 - t1;
+
+    std::cout << "Enclave Init time: " << ms_double.count() << "ms\n";
+
+    // Populate for future IOCTL requests
+    driver_fd = enclave.getFD();
+    
 
   	edge_init(&enclave);
 

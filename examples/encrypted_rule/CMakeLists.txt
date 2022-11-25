@@ -11,6 +11,7 @@ if(RISCV32)
   set(eyrie_plugins "freemem untrusted_io_syscall linux_syscall env_setup rv32")
 else()
   set(eyrie_plugins "freemem untrusted_io_syscall linux_syscall env_setup")
+  #set(eyrie_plugins "untrusted_io_syscall linux_syscall env_setup")
 endif()
 
 # Library dependencies for the eapp bin
