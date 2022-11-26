@@ -120,9 +120,12 @@ pte*
 Memory::__ept_walk_internal(uintptr_t addr, int create) {
   pte* t = reinterpret_cast<pte*>(rootPageTable);
 
+  //printf("Inside __ept_walk_internal(%lu)\n", addr);
   int i;
   for (i = (VA_BITS - RISCV_PGSHIFT) / RISCV_PGLEVEL_BITS - 1; i > 0; i--) {
+    //printf("Before pt_idx(%lu, %d)\n", addr, i);
     size_t idx = pt_idx(addr, i);
+    //printf("After pt_idx(%lu, %d)\n", addr, i);
     if (!(pte_val(t[idx]) & PTE_V)) {
       return create ? __ept_continue_walk_create(addr, &t[idx]) : 0;
     }
@@ -136,11 +139,13 @@ Memory::__ept_walk_internal(uintptr_t addr, int create) {
 
 pte*
 Memory::__ept_walk_create(uintptr_t addr) {
+ // printf("Inside __ept_walk_create(%lu)\n", addr);
   return __ept_walk_internal(addr, 1);
 }
 
 pte*
 Memory::__ept_walk(uintptr_t addr) {
+  //printf("Inside __ept_walk(%lu)\n", addr);
   return __ept_walk_internal(addr, 0);
 }
 

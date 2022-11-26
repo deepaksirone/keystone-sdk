@@ -6,6 +6,7 @@
 #include <math.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <chrono>
 extern "C" {
 #include "./keystone_user.h"
 #include "common/sha3.h"
@@ -266,12 +267,23 @@ Enclave::getHash() {
   return this->hash;
 }
 
+int Enclave::getFD() {
+  return this->pDevice->getFD();
+}
+
 Error
 Enclave::init(
     const char* eapppath, const char* runtimepath, Params _params,
     uintptr_t alternatePhysAddr) {
+
+  using std::chrono::high_resolution_clock;
+  using std::chrono::duration_cast;
+  using std::chrono::duration;
+  using std::chrono::milliseconds;
+
   params = _params;
 
+  auto t1 = high_resolution_clock::now();
   if (params.isSimulated()) {
     pMemory = new SimulatedEnclaveMemory();
     pDevice = new MockKeystoneDevice();
@@ -280,46 +292,98 @@ Enclave::init(
     pDevice = new KeystoneDevice();
   }
 
+  auto t2 = high_resolution_clock::now();
+
+  duration<double, std::milli> ms_double = t2 - t1;
+  std::cout << "Enclave Devices alloc: " << ms_double.count() << "ms\n";
+
+  t1 = high_resolution_clock::now();
   if (!initFiles(eapppath, runtimepath)) {
     return Error::FileInitFailure;
   }
 
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave initFiles: " << ms_double.count() << "ms\n";
+
+  t1 = high_resolution_clock::now();
   if (!pDevice->initDevice(params)) {
     destroy();
     return Error::DeviceInitFailure;
   }
+  t2 = high_resolution_clock::now();
 
+  ms_double = t2 - t1;
+  std::cout << "Enclave initDevice: " << ms_double.count() << "ms\n";
+
+
+  t1 = high_resolution_clock::now();
   if (!prepareEnclave(alternatePhysAddr)) {
     destroy();
     return Error::DeviceError;
   }
 
+  t2 = high_resolution_clock::now();
+
+  ms_double = t2 - t1;
+  std::cout << "Enclave prepareEnclave: " << ms_double.count() << "ms\n";
+
+  t1 = high_resolution_clock::now();
+  //printf("Mapping Runtime ELF\n");
   if (!mapElf(runtimeFile)) {
     destroy();
     return Error::VSpaceAllocationFailure;
   }
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave runtime mapElf: " << ms_double.count() << "ms\n";
 
+  t1 = high_resolution_clock::now();
   pMemory->startRuntimeMem();
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave memory startRuntimeMem: " << ms_double.count() << "ms\n";
 
+  t1 = high_resolution_clock::now();
+  //printf("Loading Runtime ELF\n");
   if (loadElf(runtimeFile) != Error::Success) {
     ERROR("failed to load runtime ELF");
     destroy();
     return Error::ELFLoadFailure;
   }
 
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave runtime loadElf: " << ms_double.count() << "ms\n";
+
+  t1 = high_resolution_clock::now();
   if (!mapElf(enclaveFile)) {
     destroy();
     return Error::VSpaceAllocationFailure;
   }
 
-  pMemory->startEappMem();
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave eapp mapElf: " << ms_double.count() << "ms\n";
 
+  t1 = high_resolution_clock::now();
+  pMemory->startEappMem();
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave memory startEappMem: " << ms_double.count() << "ms\n";
+
+
+  t1 = high_resolution_clock::now();
   if (loadElf(enclaveFile) != Error::Success) {
     ERROR("failed to load enclave ELF");
     destroy();
     return Error::ELFLoadFailure;
   }
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave memory loadElf: " << ms_double.count() << "ms\n";
 
+  t1 = high_resolution_clock::now();
 /* initialize stack. If not using freemem */
 #ifndef USE_FREEMEM
   if (!initStack(DEFAULT_STACK_START, DEFAULT_STACK_SIZE, 0)) {
@@ -328,7 +392,11 @@ Enclave::init(
     return Error::PageAllocationFailure;
   }
 #endif /* USE_FREEMEM */
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave memory initStack: " << ms_double.count() << "ms\n";
 
+  t1 = high_resolution_clock::now();
   uintptr_t utm_free;
   utm_free = pMemory->allocUtm(params.getUntrustedSize());
 
@@ -337,10 +405,18 @@ Enclave::init(
     destroy();
     return Error::DeviceError;
   }
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave memory allocUTM: " << ms_double.count() << "ms\n";
 
+  t1 = high_resolution_clock::now();
   if (loadUntrusted() != Error::Success) {
     ERROR("failed to load untrusted");
   }
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave memory loadUntrusted: " << ms_double.count() << "ms\n";
+
 
   struct runtime_params_t runtimeParams;
   runtimeParams.runtime_entry =
@@ -359,12 +435,19 @@ Enclave::init(
     validate_and_hash_enclave(runtimeParams);
   }
 
+  t1 = high_resolution_clock::now();
   if (pDevice->finalize(
           pMemory->getRuntimePhysAddr(), pMemory->getEappPhysAddr(),
           pMemory->getFreePhysAddr(), runtimeParams) != Error::Success) {
     destroy();
     return Error::DeviceError;
   }
+
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave pDevice finalize: " << ms_double.count() << "ms\n";
+
+  t1 = high_resolution_clock::now();
   if (!mapUntrusted(params.getUntrustedSize())) {
     ERROR(
         "failed to finalize enclave - cannot obtain the untrusted buffer "
@@ -372,6 +455,10 @@ Enclave::init(
     destroy();
     return Error::DeviceMemoryMapError;
   }
+  t2 = high_resolution_clock::now();
+  ms_double = t2 - t1;
+  std::cout << "Enclave mapUntrusted: " << ms_double.count() << "ms\n";
+
   //}
 
   /* ELF files are no longer needed */

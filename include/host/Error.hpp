@@ -18,6 +18,7 @@ enum class Error {
   IoctlErrorRun,
   IoctlErrorResume,
   IoctlErrorUTMInit,
+  IoctlErrorNonce,
   DeviceMemoryMapError,
   ELFLoadFailure,
   InvalidEnclave,

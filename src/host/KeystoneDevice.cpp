@@ -13,7 +13,8 @@ Error
 KeystoneDevice::create(uint64_t minPages) {
   struct keystone_ioctl_create_enclave encl;
   encl.min_pages = minPages;
-
+  
+  printf("Requesting %lu pages from the kernel\n", minPages);
   if (ioctl(fd, KEYSTONE_IOC_CREATE_ENCLAVE, &encl)) {
     perror("ioctl error");
     eid = -1;
@@ -129,6 +130,11 @@ KeystoneDevice::map(uintptr_t addr, size_t size) {
   ret = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, addr);
   assert(ret != MAP_FAILED);
   return ret;
+}
+
+int
+KeystoneDevice::getFD() {
+  return fd;
 }
 
 bool
