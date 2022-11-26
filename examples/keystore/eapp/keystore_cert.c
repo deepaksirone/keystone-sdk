@@ -19,7 +19,7 @@
 static byte* generateEvidenceExtension(RsaKey *gen_key, size_t *evidence_sz) {
     byte *report_buf = (byte *)calloc(2048, sizeof(byte));
     byte *pubkey = (byte *)calloc(1024, sizeof(byte));
-    int ret = wc_RsaKeyToPublicDer(gen_key, report_buf, 1024 * sizeof(byte));
+    int ret = wc_RsaKeyToPublicDer(gen_key, pubkey, 1024 * sizeof(byte));
     if (ret < 0) {
         printf("Error in writing public key to DER format: %d", ret);
         return NULL;
