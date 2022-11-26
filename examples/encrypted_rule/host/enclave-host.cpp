@@ -199,11 +199,11 @@ size_t send_message_fd(int32_t fd, void *buffer, size_t size) {
 network_recv_data_t receive_message_fd(int32_t fd, size_t size) {
   network_recv_data_t ret;
   void *buffer = malloc(size);
-  printf("[host] Reading, sz: %lld\n", size);
-  fflush(stdout);
+  //printf("[host] Reading, sz: %lld\n", size);
+  //fflush(stdout);
   size_t sz_read = read(fd, buffer, size);
-  printf("[host] Read, sz: %lld\n", sz_read);
-  fflush(stdout);
+  //printf("[host] Read, sz: %lld\n", sz_read);
+  //fflush(stdout);
   
   ret.size = sz_read;
   ret.data = buffer;
@@ -260,7 +260,7 @@ void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
     
     char *trigger_id = data->trigger_name;
     char *oauth_token = lookup_oauth_token(trigger_id);
-    uintptr_t nonce = data->nonce;
+    uintptr_t nonce = get_nonce_SM();
     
     //TODO: Request SM for the nonce here
   

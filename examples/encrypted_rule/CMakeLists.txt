@@ -1,5 +1,5 @@
 set(eapp_bin enc_rule)
-set(eapp_src eapp/enc_rule.c eapp/edge_wrapper.c eapp/message.c eapp/event_loop.c eapp/message.c)
+set(eapp_src eapp/enc_rule.c eapp/edge_wrapper.c eapp/message.c eapp/event_loop.c eapp/message.c eapp/ed25519/fe.c eapp/ed25519/ge.c eapp/ed25519/sc.c eapp/ed25519/sha512.c eapp/ed25519/verify.c)
 set(host_bin enc_rule-runner)
 set(host_src host/enclave-host.cpp host/edge_wrapper.cpp)
 set(package_name "enc_rule.ke")
@@ -52,7 +52,7 @@ target_link_libraries(${host_bin} "-static" ${KEYSTONE_LIB_HOST} ${KEYSTONE_LIB_
 
 set(eyrie_files_to_copy .options_log eyrie-rt)
 add_eyrie_runtime(${eapp_bin}-eyrie
-  "d8181e550a83c06858408713b370c9518927abfa"
+  "28f95e18a90ce4b9e559a03a67017c2387a5bd7c"
   ${eyrie_plugins}
   ${eyrie_files_to_copy})
 

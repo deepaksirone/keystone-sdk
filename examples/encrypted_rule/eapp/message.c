@@ -17,6 +17,7 @@
 #include "keystore_request.h"
 #include "keystore_defs.h"
 #include "message.h"
+#include "./ed25519/ed25519.h"
 
 #define MAXSZ 65535
 int copy_from_shared(void* dst, uintptr_t offset, size_t data_len);
@@ -25,6 +26,7 @@ int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx);
 WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify);
 WOLFSSL_METHOD* SetMethodClient(int i);
 static char reply[MAXSZ];
+static char pub_key[2048];
 
 struct WOLFSSL_SOCKADDR {
     unsigned int sz;
@@ -70,6 +72,25 @@ int myCustomExtCallback(const word16* oid, word32 oidSz, int crit,
         printf("%x ", der[i]);
     }
     printf("\n");
+    printf("Extension Size: %u\n", derSz);
+
+    report_t report;
+    memcpy((void *)&report, der, sizeof(report_t));
+
+
+    // Verify the signature here and later check if the public key matches that in the certificate
+    if (ed25519_verify((unsigned char *)&report.enclave.signature, (unsigned char *)&report.enclave, 
+        sizeof(struct enclave_report_t) - ATTEST_DATA_MAXLEN - SIGNATURE_SIZE + report.enclave.data_len, (unsigned char *)&report.sm.public_key)) {
+        ocall_print_buffer("[Custom Extension] Successfully verified signature!\n");
+    } else {
+        ocall_print_buffer("[Custom Extension] Successfully verified signature!\n");
+    }
+
+    // Store the DER public key for later verification
+    printf("[Custom Extension] report.enclave.data_len: %lu\n", report.enclave.data_len);
+    memcpy((void *)&pub_key, (void *)&report.enclave.data, report.enclave.data_len);
+
+
     //fflush(stdout);
 
     /* NOTE: by returning zero, we are accepting this extension and informing
@@ -103,6 +124,14 @@ int verify_attested_tls(int preverify, WOLFSSL_X509_STORE_CTX* store_ctx) {
     if (ret == 0) {
         printf("[verify_attested_tls] Cert issuer: %s\n", decodedCert->issuer);
     }
+
+    if (memcmp(decodedCert->publicKey, pub_key, decodedCert->pubKeySize) == 0) {
+        ocall_print_buffer("[verify_attested_tls] Public Keys Match!\n");
+    } else {
+        ocall_print_buffer("[verify_attested_tls] Public Keys Do Not Match!\n");
+    }
+
+    printf("[verify_attested_tls] decodedCert->pubKeySize: %u\n", decodedCert->pubKeySize);
 
     return 1;
 }

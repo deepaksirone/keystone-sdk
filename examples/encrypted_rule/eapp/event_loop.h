@@ -5,6 +5,7 @@
 #include "encl_message.h"
 
 #define SYSCALL_GENRAND_WORD 1006
+#define SYSCALL_VERIFY_NONCE 1010
 // Setting trigger response timeout to be 20 seconds
 #define TRIGGER_TIMEOUT 20
 
