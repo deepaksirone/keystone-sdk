@@ -49,10 +49,10 @@ char *gen_iv_sm(int iv_size) {
 
 int myCustomExtCallback(const word16* oid, word32 oidSz, int crit,
                                const unsigned char* der, word32 derSz) {
-    word32 i;
+    //word32 i;
 
     printf("Custom Extension found!\n");
-    printf("(");
+    /*printf("(");
     for (i = 0; i < oidSz; i++) {
         printf("%d", oid[i]);
         if (i < oidSz - 1) {
@@ -71,7 +71,7 @@ int myCustomExtCallback(const word16* oid, word32 oidSz, int crit,
     for (i = 0; i < derSz; i ++) {
         printf("%x ", der[i]);
     }
-    printf("\n");
+    printf("\n");*/
     printf("Extension Size: %u\n", derSz);
 
     report_t report;
@@ -333,7 +333,7 @@ int64_t send_message(WOLFSSL *sslcli, void *buffer, size_t sz) {
 int64_t recv_message(WOLFSSL *sslcli, void *buffer, size_t sz) {
     uint64_t request_sz;
     read_buffer(sslcli, &request_sz, sizeof(uint64_t));
-    DEBUG_PRINT("Receiving message of size: %lu\n", request_sz);
+    //DEBUG_PRINT("Receiving message of size: %lu\n", request_sz);
 
     int64_t ret = read_buffer(sslcli, buffer, request_sz);
     return ret;

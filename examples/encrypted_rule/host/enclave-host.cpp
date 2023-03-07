@@ -40,6 +40,9 @@ byte local_buffer[BUFFERLEN];
 
 static int driver_fd = -1;
 
+std::chrono::_V2::system_clock::time_point enclave_start;
+std::chrono::_V2::system_clock::time_point enclave_end;
+
 void send_buffer(byte* buffer, size_t len){
   write(fd_clientsock, &len, sizeof(size_t));
   write(fd_clientsock, buffer, len);
@@ -257,7 +260,7 @@ uintptr_t get_nonce_SM() {
 void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
     //TODO: parse JSON and return JSON with nonce
     
-    
+    auto get_trigger_data_start_time = std::chrono::high_resolution_clock::now();
     char *trigger_id = data->trigger_name;
     char *oauth_token = lookup_oauth_token(trigger_id);
     uintptr_t nonce = get_nonce_SM();
@@ -279,7 +282,7 @@ void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
     });
 
     auto res = std::string{response.body.begin(), response.body.end()};
-    std::cout << "Response: " << res << std::endl;
+    //std::cout << "Response: " << res << std::endl;
     rapidjson::Document doc;
     if (doc.Parse(res.c_str()).HasParseError()) {
       printf("[Trigger Data] Error Parsing JSON: %s\n", res.c_str());
@@ -336,6 +339,12 @@ void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
     resp->ciphertext_size = ciphertext_sz;
 
     *trigger_data_sz =  sizeof(trigger_response_t) + ciphertext_sz * sizeof(char);
+    auto get_trigger_data_end_time = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double, std::milli> ms_double = get_trigger_data_end_time - get_trigger_data_start_time;
+    
+    std::cout << "[get_trigger_data] Exec time: " << ms_double.count() << "ms\n";
+    enclave_start = std::chrono::high_resolution_clock::now();
     return (void *)resp;
 }
 
@@ -380,8 +389,10 @@ std::string bytes_to_string(char *bytes, int length) {
 }
 
 int32_t send_action_data(action_data_t *data) {
-  actions_sent.release();
+  enclave_end = std::chrono::high_resolution_clock::now();
 
+  actions_sent.release();
+  
   rapidjson::Document action_params;
   if (action_params.Parse(data->action_params).HasParseError()) {
       printf("[send_action_data] action params parse error");
@@ -438,7 +449,7 @@ void listener_function(int port) {
     crow::SimpleApp app;
     CROW_ROUTE(app, "/event_notify/").methods("POST"_method) ([] () {
         //Lock trigger_data_lock
-        std::cout << "Got event notification" << std::endl;
+        //std::cout << "Got event notification" << std::endl;
         //int prev_sent = trigger_event_action_data_sent;
         //std::lock(trigger_data_lock);
         //trigger_data_lock.lock();
@@ -447,9 +458,10 @@ void listener_function(int port) {
         events_notified.release();
 
         actions_sent.acquire();
+        std::chrono::duration<double, std::milli> ms_double = enclave_end - enclave_start;
+        std::cout << "Enclave Exec time: " << ms_double.count() << "ms\n";
         return "success";
     });
-
     std::cout << "Starting notification server " << std::endl;
     //app.port(port).multithreaded().run();
     app.port(port).concurrency(1).run();
