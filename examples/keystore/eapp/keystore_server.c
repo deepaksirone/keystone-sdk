@@ -10,6 +10,7 @@
 #include <wolfssl/ssl.h>
 #include <wolfssl/wolfcrypt/types.h>
 #include <wolfssl/wolfcrypt/aes.h>
+#include <wolfssl/wolfcrypt/asn.h>
 #include "encl_message.h"
 #include "edge_wrapper.h"
 #include "keystore_cert.h"
@@ -19,6 +20,8 @@
 #include "keystore_request.h"
 #include "keystore_defs.h"
 #include "app/syscall.h"
+#include "./ed25519/ed25519.h"
+#include "./mtwister/mtwister.h"
 
 #define MAXSZ 65535
 #define MAX_COMMAND_SIZE 65535
@@ -28,13 +31,21 @@
 #define SYSCALL_GENRAND_WORD 1006
 
 char command_buf[MAX_COMMAND_SIZE];
-byte user_record[USER_RECORD_SIZE];
+byte reply[MAX_COMMAND_SIZE];
 char printf_buf[PRINT_BUF_SIZE];
+static char pub_key[2048];
+
 
 int CbIOSend(WOLFSSL *ssl, char *buf, int sz, void *ctx);
 int CbIORecv(WOLFSSL *ssl, char *buf, int sz, void *ctx);
-WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify);
+WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify, byte *cert_buf, 
+int cert_size, byte *pvt_key, int pvtkey_size);
 WOLFSSL_METHOD* SetMethodClient(int i);
+
+// Chain Replication Stuff
+static int has_attested_tls = 0;
+static int64_t server_id = -1;
+static char storage_key[STORAGE_KEY_SIZE];
 
 
 struct WOLFSSL_SOCKADDR {
@@ -43,12 +54,116 @@ struct WOLFSSL_SOCKADDR {
 };
 
 static int fpSendRecv;
+static int fpFwdKey;
 static int verboseFlag = 0;
-
+ 
 static uintptr_t rand_gen_keystone(void)
 {
     uintptr_t ret = SYSCALL_0(SYSCALL_GENRAND_WORD);
     return ret;
+}
+
+static void generate_storage_key() {
+    uintptr_t seed = rand_gen_keystone();
+    // Use the Mersenne Twister for keygen
+    MTRand r = seedRand(seed);
+
+    for (int i = 0; i < STORAGE_KEY_SIZE; i++) {
+        unsigned long rand_pt = genRandLong(&r);
+        byte rand_byte = rand_pt & 0xff;
+        storage_key[i] = rand_byte;
+    }
+}
+
+//TODO: set the has_attested_tls variable here
+int myCustomExtCallback(const word16* oid, word32 oidSz, int crit,
+                               const unsigned char* der, word32 derSz) {
+    //word32 i;
+
+    printf("Custom Extension found!\n");
+    /*printf("(");
+    for (i = 0; i < oidSz; i++) {
+        printf("%d", oid[i]);
+        if (i < oidSz - 1) {
+            printf(".");
+        }
+    }
+    printf(") : ");
+
+    if (crit) {
+        printf("CRITICAL");
+    } else {
+        printf("NOT CRITICAL");
+    }
+    printf(" : ");
+
+    for (i = 0; i < derSz; i ++) {
+        printf("%x ", der[i]);
+    }
+    printf("\n");*/
+    printf("Extension Size: %u\n", derSz);
+
+    report_t report;
+    memcpy((void *)&report, der, sizeof(report_t));
+
+
+    // Verify the signature here and later check if the public key matches that in the certificate
+    if (ed25519_verify((unsigned char *)&report.enclave.signature, (unsigned char *)&report.enclave, 
+        sizeof(struct enclave_report_t) - ATTEST_DATA_MAXLEN - SIGNATURE_SIZE + report.enclave.data_len, (unsigned char *)&report.sm.public_key)) {
+        ocall_print_buffer("[Custom Extension] Successfully verified signature!\n");
+        has_attested_tls = 1;
+    } else {
+        ocall_print_buffer("[Custom Extension] Successfully verified signature!\n");
+        has_attested_tls = 0;
+    }
+
+    // Store the DER public key for later verification
+    printf("[Custom Extension] report.enclave.data_len: %lu\n", report.enclave.data_len);
+    memcpy((void *)&pub_key, (void *)&report.enclave.data, report.enclave.data_len);
+
+
+    //fflush(stdout);
+
+    /* NOTE: by returning zero, we are accepting this extension and informing
+     *       wolfSSL that it is acceptable. If you find an extension that you
+     *       do not find acceptable, you should return an error. The standard 
+     *       behavior upon encountering an unknown extension with the critical
+     *       flag set is to return ASN_CRIT_EXT_E. For the sake of brevity,
+     *       this example is always accepting every extension; you should use
+     *       different logic. */
+    return 0;
+}
+
+int verify_attested_tls(int preverify, WOLFSSL_X509_STORE_CTX* store_ctx) {
+    printf("[verify_attested_tls] Entering\n");
+	WOLFSSL_X509 *current_cert = store_ctx->current_cert;
+	DecodedCert *decodedCert = (DecodedCert *)malloc(sizeof(DecodedCert));
+    int ret;
+    //char *derbuf = (char *)malloc(8000 * sizeof(char));
+
+    unsigned char *derBuffer[1];
+    derBuffer[0] = NULL;
+
+    int derSz = wolfSSL_i2d_X509(current_cert, derBuffer);
+    //fflush(stdout);
+    wc_InitDecodedCert(decodedCert, derBuffer[0], derSz, 0);
+    
+    wc_SetUnknownExtCallback(decodedCert, myCustomExtCallback);
+
+    ret = ParseCert(decodedCert, CERT_TYPE, NO_VERIFY, NULL);
+    if (ret == 0) {
+        printf("[verify_attested_tls] Cert issuer: %s\n", decodedCert->issuer);
+    }
+
+    if (memcmp(decodedCert->publicKey, pub_key, decodedCert->pubKeySize) == 0) {
+        ocall_print_buffer("[verify_attested_tls] Public Keys Match!\n");
+    } else {
+        ocall_print_buffer("[verify_attested_tls] Public Keys Do Not Match!\n");
+    }
+
+    printf("[verify_attested_tls] decodedCert->pubKeySize: %u\n", decodedCert->pubKeySize);
+
+    return 1;
 }
 
 char *generate_iv(char *password) {
@@ -161,6 +276,8 @@ WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite, byte *certBuf,
                                                         SSL_FILETYPE_ASN1);
 #endif
 
+    wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verify_attested_tls);
+
     if (wolfSSL_CTX_use_certificate_buffer(ctx, certBuf, cert_buf_sz, SSL_FILETYPE_ASN1) != SSL_SUCCESS) {
         printf("Error loading certificate from buffer\n");
         return NULL;
@@ -195,6 +312,61 @@ WOLFSSL* Server(WOLFSSL_CTX* ctx, char* suite, int setSuite, byte *certBuf,
     return ssl;
 }
 
+WOLFSSL* Client(WOLFSSL_CTX* ctx, char* suite, int setSuite, int doVerify, byte *cert_buf, 
+            int cert_size, byte *pvt_key, int pvtkey_size)
+{
+    WOLFSSL*     ssl = NULL;
+    int ret;
+
+    if ((ctx = wolfSSL_CTX_new(wolfTLSv1_2_client_method())) == NULL) {
+        printf("Error in setting client ctx\n");
+        return NULL;
+    }
+
+    if (doVerify == 1) {
+        /*if ((wolfSSL_CTX_load_verify_locations(ctx, peerAuthority, 0))
+                                                              != SSL_SUCCESS) {
+            printf("Failed to load CA (peer Authority) file\n");
+            return NULL;
+        }*/
+    } else {
+        wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, verify_attested_tls);
+        if (wolfSSL_CTX_use_certificate_buffer(ctx, cert_buf, cert_size, SSL_FILETYPE_ASN1) != SSL_SUCCESS) {
+            printf("[Client] Error loading certificate from buffer\n");
+            return NULL;
+        }
+
+        if (wolfSSL_CTX_use_PrivateKey_buffer(ctx, pvt_key, pvtkey_size, SSL_FILETYPE_ASN1) != SSL_SUCCESS) {
+            printf("[Client] Error loading server pvt key buffer\n");
+            return NULL;
+        }
+    }
+
+
+    if (setSuite == 1) {
+        if ((ret = wolfSSL_CTX_set_cipher_list(ctx, suite)) != SSL_SUCCESS) {
+            printf("ret = %d\n", ret);
+            printf("can't set cipher\n");
+            wolfSSL_CTX_free(ctx);
+            return NULL;
+        }
+    } else {
+        (void) suite;
+    }
+
+    wolfSSL_SetIORecv(ctx, CbIORecv);
+    wolfSSL_SetIOSend(ctx, CbIOSend);
+
+    if ((ssl = wolfSSL_new(ctx)) == NULL) {
+        printf("issue when creating ssl\n");
+        wolfSSL_CTX_free(ctx);
+        return NULL;
+    }
+
+    wolfSSL_set_fd(ssl, fpFwdKey);
+
+    return ssl;
+}
 
 
 uint64_t read_buffer(WOLFSSL *sslcli, void *buffer, size_t sz)
@@ -262,6 +434,78 @@ void success_response(char *response, WOLFSSL *sslServ) {
     write_buffer(sslServ, &size, sizeof(uint64_t));
     write_buffer(sslServ, response, strlen(response) + 1);
     //wolfSSL_shutdown(sslServ);
+}
+
+int64_t send_message(WOLFSSL *sslcli, void *buffer, size_t sz) {
+    uint64_t request_sz = sz;
+    write_buffer(sslcli, &request_sz, sizeof(uint64_t));
+    int64_t ret = write_buffer(sslcli, buffer, sz);
+    return ret;
+}
+
+int64_t recv_message(WOLFSSL *sslcli, void *buffer, size_t sz) {
+    uint64_t request_sz;
+    read_buffer(sslcli, &request_sz, sizeof(uint64_t));
+    DEBUG_PRINT("Receiving message of size: %lu\n", request_sz);
+
+    int64_t ret = read_buffer(sslcli, buffer, request_sz);
+    return ret;
+}
+
+static void forward_storage_key(byte *cert_buf, 
+            int cert_size, byte *pvt_key, int pvtkey_size) {
+    
+    storage_key_request_t storage_req;
+    memcpy(storage_req.storage_key, storage_key, STORAGE_KEY_SIZE);
+
+    // Prepare the request struct
+    request_t req;
+    req.type = CHAIN_R_SET_STORAGE_KEY;
+    req.data.storage_key_req = storage_req;
+
+    char hostname[64];
+    
+    // The next host from the server
+    int host_len = snprintf(hostname, 64, "keystone.tap-%ld", server_id + 1);
+
+    connection_data_t *data = (connection_data_t *) malloc(sizeof(connection_data_t) + (host_len + 1) * sizeof(unsigned char));
+    memset(data, 0, sizeof(connection_data_t) + (host_len + 1) * sizeof(unsigned char));
+    data->portnumber = 7777;
+    memcpy(data->hostname, hostname, host_len);
+    fpFwdKey = ocall_init_connection(data, sizeof(connection_data_t) + (host_len + 1) * sizeof(unsigned char));
+
+    //TODO: Make this use fpFwdKey: done
+    WOLFSSL *sslCli = Client(NULL, NULL, 0, 0, cert_buf, cert_size, pvt_key, pvtkey_size);
+
+    int ret = SSL_FAILURE;
+
+    printf("Starting connection to fwd key\n");
+    while (ret != SSL_SUCCESS) {
+        int error;
+        printf("Connecting..\n");
+        /* client connect */
+        ret |= wolfSSL_connect(sslCli);
+        error = wolfSSL_get_error(sslCli, 0);
+        if (ret != SSL_SUCCESS) {
+            if (error != SSL_ERROR_WANT_READ &&
+                error != SSL_ERROR_WANT_WRITE) {
+                printf("client ssl connect failed, error: %d\n", error);
+                fflush(stdout);
+                goto cleanup;
+            }
+        }
+        printf("Fwd key connection successful...\n");
+    }
+
+    send_message(sslCli, &req, sizeof(request_t));
+    int sz = recv_message(sslCli, reply, sizeof(reply));
+
+    printf("Reply: %s, Reply size: %d\n", reply, sz);
+    
+cleanup:
+    wolfSSL_free(sslCli);
+    ocall_terminate_conn(fpFwdKey);
+
 }
 
 void register_rule(char *username, char *password, uintptr_t rule_id, char *rule_bin_hash, char *sm_bin_hash,
@@ -506,7 +750,8 @@ void register_user(char *username, char *password, uintptr_t *user_id, WOLFSSL *
 /// REGUSR <username> <password>
 /// REGRUL <username> <password> <rule id> <rule binary hash in hex> <runtime binary hash in hex> <n> <m> <K_t1 in hex>..<K_tn> <K_a1 in hex>..<K_an> <K_rule in hex>
 /// REQRUL <runtime_request in binary>
-void process_request(request_t* request, int cmd_size, WOLFSSL *sslServ) {
+void process_request(request_t* request, int cmd_size, WOLFSSL *sslServ, byte *cert_buf, 
+            int cert_size, byte *pvt_key, int pvtkey_size) {
     char *username;
     char *password;
     char *key_rule;
@@ -577,6 +822,26 @@ void process_request(request_t* request, int cmd_size, WOLFSSL *sslServ) {
             runtime_request_t *runtime_req = (runtime_request_t *)&(request->data);
             process_dec_request(runtime_req, sslServ);
             break;
+
+        // Request Types for Chain Replication
+        case CHAIN_R_ASGN_SVR_ID:
+            server_id_request_t *serv_id_req = (server_id_request_t *)&(request->data);
+            server_id = serv_id_req->server_id;
+            // If I am the head, then generate and forward keys to the successor
+            if (server_id == 1) {
+                generate_storage_key();
+                forward_storage_key(cert_buf, cert_size, pvt_key, pvtkey_size);
+            }
+            break;
+
+        case CHAIN_R_SET_STORAGE_KEY:
+            storage_key_request_t *strg_key_req = (storage_key_request_t *)&(request->data);
+            if (has_attested_tls) {
+                memcpy(storage_key, strg_key_req->storage_key, STORAGE_KEY_SIZE);
+                forward_storage_key(cert_buf, cert_size, pvt_key, pvtkey_size);
+            }
+            break;
+        
         default:
             return error_response("[regrule] Invalid request type", sslServ);
     }
@@ -594,8 +859,6 @@ int start_request_server(char *bind_addr, int bind_port, byte *cert_buf,
     data->portnumber = bind_port;
     memcpy(data->hostname, bind_addr, bind_addr_len);
     int servSocket = ocall_init_serv_connection(data, sizeof(connection_data_t) + bind_addr_len * sizeof(unsigned char));
-
-    
 
     printf("ServSocket: %d\n", servSocket);
 
@@ -644,12 +907,13 @@ int start_request_server(char *bind_addr, int bind_port, byte *cert_buf,
 
         printf("After reading request_t: %d\n", ret);
 
-        process_request((request_t *)command_buf, ret, sslServ);
+        process_request((request_t *)command_buf, ret, sslServ, cert_buf, 
+            cert_size, pvt_key, pvtkey_size);
         
         wolfSSL_shutdown(sslServ);
         wolfSSL_free(sslServ);
         ocall_terminate_conn(*clientfd);
-
+        has_attested_tls = 0;
     }
 
     return 0;

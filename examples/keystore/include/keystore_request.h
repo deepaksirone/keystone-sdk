@@ -9,6 +9,12 @@
 #define REGRULE_REQUEST 0x2
 #define RUNTIME_REQUEST 0x3
 
+// Chain Replication Defines
+#define CHAIN_R_ASGN_SVR_ID 0x4
+#define CHAIN_R_SET_STORAGE_KEY 0x5
+#define CHAIN_R_FORWARD_REQUEST 0x6
+#define CHAIN_R_ACK_REQUEST 0x7
+
 typedef struct reguser_request {
     int user_len;
     int password_len;
@@ -41,12 +47,27 @@ typedef struct runtime_request {
     struct report_t report;
 } runtime_request_t;
 
+typedef struct assign_server_id_request {
+    uintptr_t server_id;
+} server_id_request_t;
+
+typedef struct storage_key_request {
+    char storage_key[STORAGE_KEY_SIZE];
+} storage_key_request_t;
+
+typedef struct ack_key_request {
+    uint64_t ack_id;
+} ack_key_request_t;
+
 typedef struct request {
     char type;
     union {
         runtime_request_t runtime_req;
         regrule_request_t regrule_req;
         reguser_request_t reguser_req;
+        server_id_request_t serverid_req;
+        storage_key_request_t storage_key_req;
+        ack_key_request_t ack_key_req;
     } data;
 } request_t;
 
