@@ -12,8 +12,9 @@
 // Chain Replication Defines
 #define CHAIN_R_ASGN_SVR_ID 0x4
 #define CHAIN_R_SET_STORAGE_KEY 0x5
-#define CHAIN_R_FORWARD_REQUEST 0x6
-#define CHAIN_R_ACK_REQUEST 0x7
+#define CHAIN_R_FORWARD_REQUEST_REGUSER 0x6
+#define CHAIN_R_FORWARD_REQUEST_REGRULE 0x7
+#define CHAIN_R_ACK_REQUEST 0x8
 
 typedef struct reguser_request {
     int user_len;

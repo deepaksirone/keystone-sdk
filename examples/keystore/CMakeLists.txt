@@ -1,5 +1,5 @@
 set(eapp_bin keystore)
-set(eapp_src eapp/keystore_server.c eapp/keystore_cert.c eapp/edge_wrapper.c eapp/ed25519/fe.c eapp/ed25519/ge.c eapp/ed25519/sc.c eapp/ed25519/sha512.c eapp/ed25519/verify.c eapp/mtwister/mtwister.c)
+set(eapp_src eapp/keystore_server.c eapp/keystore_cert.c eapp/keystore_conn.c eapp/keystore_queue.c eapp/edge_wrapper.c eapp/ed25519/fe.c eapp/ed25519/ge.c eapp/ed25519/sc.c eapp/ed25519/sha512.c eapp/ed25519/verify.c eapp/mtwister/mtwister.c)
 set(host_bin keystore-runner)
 set(host_src host/enclave-host.cpp host/edge_wrapper.cpp host/keystore_datastore.cpp)
 set(package_name "keystore.ke")

@@ -12,6 +12,7 @@
 
 // Chain Replication Storage Key Size
 #define STORAGE_KEY_SIZE 32
+#define CHAIN_R_END_OF_CHAIN 0xff
 
 #define RUNTIME_BIN_HASH_SIZE 64
 #define EAPP_BIN_HASH_SIZE 64
