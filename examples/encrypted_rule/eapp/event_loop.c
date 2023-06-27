@@ -100,9 +100,9 @@ void run_rule()
 void send_data(struct keystore_rule *rule)
 {
     //TODO: Ask OS to send encrypted action blob to action service
-    int *output_vector = get_action_skip_vector();
+    //int *output_vector = get_action_skip_vector();
     for (int i = 0; i < NUM_RULE_ACTIONS; i++) {
-        if (output_vector[i] == 0) {
+        //if (output_vector[i] == 0) {
             int32_t sz = 0;
             int len_params_unescaped = strlen(rule_action_params_unescaped[i]);
             char *action_data = get_action_data(i, &sz, rule_action_params_unescaped[i], len_params_unescaped);
@@ -121,7 +121,7 @@ void send_data(struct keystore_rule *rule)
 
             free(action_data);
             free(action_dt);
-        }
+        //}
     }
 
     return;

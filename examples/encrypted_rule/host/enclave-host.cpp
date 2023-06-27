@@ -267,7 +267,7 @@ void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
     
     //TODO: Request SM for the nonce here
   
-    http::Request request{"http://node1.spigot.cs799-serverless-pg0.wisc.cloudlab.us:80/event_data/"};
+    http::Request request{"http://node1.spigot1.cs799-serverless-pg0.wisc.cloudlab.us:80/event_data/"};
 
     const std::string body = construct_request_json(trigger_id, oauth_token, nonce, (char *)data->rule_params);
 
@@ -292,6 +292,7 @@ void *get_trigger_data(trigger_data_t *data, size_t *trigger_data_sz) {
 
     if (!doc.HasMember("event_ciphertext")) {
       printf("[Trigger Data] Trigger data has no member event_ciphertext\n");
+      printf("[Debug] Response: %s", res.c_str());
       *trigger_data_sz = 0;
       return NULL;
     }
