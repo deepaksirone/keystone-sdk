@@ -22,8 +22,16 @@ include_directories(include)
 #include_directories(${KEYSTONE_SDK_DIR}/include/app)
 
 # eapp
+if (NOT DEFINED ENV{RULE_LIB_DIR})
+	message(FATAL_ERROR "RULE_LIB_DIR is not set")
+endif()
+
 set(RULE_LIB_DIR $ENV{RULE_LIB_DIR})
 set(RULE_LIB ${RULE_LIB_DIR}/rule_lib.a)
+
+if (NOT DEFINED ENV{RULE_SHIM_DIR})
+	message(FATAL_ERROR "RULE_SHIM_DIR is not set")
+endif()
 
 set(RULE_SHIM_DIR $ENV{RULE_SHIM_DIR})
 set(RULE_SHIM ${RULE_SHIM_DIR}/libhlvm-runtime.a)
