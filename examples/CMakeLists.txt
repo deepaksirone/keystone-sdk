@@ -50,7 +50,10 @@ add_custom_target("examples")
 #add_subdirectory(tests)
 #add_subdirectory(hello_new)
 #add_subdirectory(wolfssl_client)
-add_subdirectory(ntp_client)
-add_subdirectory(keystore)
-add_subdirectory(encrypted_rule)
-add_subdirectory(rule_process)
+
+# All eapps below are needed for the artifact
+
+#add_subdirectory(ntp_client)
+#add_subdirectory(keystore)
+#add_subdirectory(encrypted_rule)
+#add_subdirectory(rule_process)
