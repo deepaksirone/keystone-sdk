@@ -204,5 +204,5 @@ macro(add_cryptor binary_target)
 	endif()
 	add_custom_target(${binary_target}-cryptor 
 		DEPENDS ${binary_target}
-		COMMAND $ENV{TAP_CRYPTOR_DIR}/cryptor.py ${binary_target})
+		COMMAND python3 $ENV{TAP_CRYPTOR_DIR}/cryptor.py ${binary_target})
 endmacro(add_cryptor)
